@@ -23,7 +23,7 @@ function Meter({ label, value }: { label: string; value: number }) {
 export function OutputMeters() {
   const { left, right } = useBoatStore(useShallow(selectOutput));
   return (
-    <div className="flex min-w-64 flex-1 gap-3">
+    <div className="flex min-w-64 gap-3 portrait:flex-1 landscape:min-w-0">
       <Meter label="L" value={left} />
       <Meter label="R" value={right} />
     </div>

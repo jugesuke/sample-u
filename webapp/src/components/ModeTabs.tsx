@@ -18,7 +18,7 @@ export function ModeTabs() {
           key={mode}
           aria-pressed={mode === current}
           onClick={() => setMode(mode)}
-          className={`min-h-11 flex-1 whitespace-nowrap px-2 text-sm font-bold first:rounded-l-lg last:rounded-r-lg ${
+          className={`min-h-11 flex-1 whitespace-nowrap px-2 text-sm font-bold landscape:px-1 landscape:text-xs first:rounded-l-lg last:rounded-r-lg ${
             mode === current ? 'bg-ink text-paper' : ''
           }`}
         >

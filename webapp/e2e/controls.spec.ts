@@ -481,3 +481,29 @@ test('Pixel 7aの幅では切断後も接続まわりが1行に収まる', async
   );
   expect(new Set(tops).size).toBe(1);
 });
+
+for (const { mode, label, length, axis } of [
+  { mode: '左右独立', label: '左', length: 320, axis: 'height' },
+  { mode: 'スロットル+舵', label: 'スロットル', length: 320, axis: 'height' },
+  { mode: 'スロットル+舵', label: '舵', length: 400, axis: 'width' },
+] as const) {
+  test(`横画面でスライダーを長く使える (${mode}: ${label})`, async ({ page }) => {
+    await page.setViewportSize({ width: 839, height: 412 });
+    await installBluetoothMock(page);
+    await page.goto('/');
+    await page.getByRole('button', { name: mode }).click();
+    const track = page.getByRole('slider', { name: label, exact: true }).locator('xpath=ancestor::*[@data-orientation][last()]');
+    const box = (await track.boundingBox())!;
+    expect(box[axis]).toBeGreaterThanOrEqual(length);
+  });
+}
+
+test('横画面のジョイスティックは画面の高さを使う', async ({ page }) => {
+  await page.setViewportSize({ width: 839, height: 412 });
+  await installBluetoothMock(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'スティック' }).click();
+  const box = (await page.getByTestId('joystick').boundingBox())!;
+  expect(box.height).toBeGreaterThanOrEqual(370);
+  expect(box.width).toBeGreaterThanOrEqual(500);
+});

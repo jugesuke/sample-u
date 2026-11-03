@@ -9,9 +9,17 @@ import { StopButton } from './components/StopButton';
 import { useSessionGuards } from './lib/useSessionGuards';
 import { useBoatStore } from './store';
 
+// 横画面では操作部を左右に置き、接続やSTOPなどは2列目にまとめる
+const LANDSCAPE_COLUMNS = {
+  joystick: 'landscape:grid-cols-[1fr_17rem]',
+  tank: 'landscape:grid-cols-[1fr_17rem_1fr]',
+  throttleRudder: 'landscape:grid-cols-[auto_17rem_1fr]',
+} as const;
+
 export function App() {
   useSessionGuards();
   const [logOpen, setLogOpen] = useState(false);
+  const mode = useBoatStore((state) => state.mode);
   const resetAxes = useBoatStore((state) => state.resetAxes);
 
   const openLog = () => {
@@ -22,14 +30,16 @@ export function App() {
   if (logOpen) return <LogPanel onClose={() => setLogOpen(false)} />;
 
   return (
-    <main className="flex h-dvh flex-col gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] landscape:gap-1 landscape:p-2">
-      <header className="flex flex-col gap-2 landscape:flex-row landscape:flex-wrap landscape:items-center landscape:gap-x-3 landscape:gap-y-1">
+    <main
+      className={`flex h-dvh flex-col gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] landscape:grid landscape:grid-rows-[auto_1fr] landscape:p-2 ${LANDSCAPE_COLUMNS[mode]}`}
+    >
+      <header className="flex flex-col gap-2 landscape:col-start-2 landscape:row-start-1">
         <ConnectionBar onOpenLog={openLog} />
         <ModeTabs />
         <OutputMeters />
       </header>
       <DriveArea />
-      <footer className="flex items-center gap-3">
+      <footer className="flex items-center gap-3 landscape:col-start-2 landscape:row-start-2 landscape:flex-col landscape:items-stretch landscape:gap-2 landscape:self-end">
         <MaxOutputSlider />
         <StopButton />
       </footer>
