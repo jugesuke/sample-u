@@ -4,19 +4,3 @@ dev-dist/
 .pnpm-store/
 test-results/
 playwright-report/
-
-# Claude Code とエディタのローカル設定
-.claude/
-.mcp.json
-.idea
-.vscode
-
-# Claude Code のサンドボックスが作業ディレクトリに作るマウントポイント
-.bash_profile
-.bashrc
-.gitconfig
-.gitmodules
-.profile
-.ripgreprc
-.zprofile
-.zshrc
