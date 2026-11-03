@@ -416,3 +416,19 @@ test('ログ画面を開くと操作は中立に戻り、受信は続く', async
   await page.evaluate(() => window.ble.emitLog('3000 while open\n'));
   await expect(page.getByRole('log', { name: '動作ログ' })).toContainText('3000 while open');
 });
+
+test('ログは再読み込み後も残り、クリアすると消える', async ({ page }) => {
+  await openConnected(page);
+  await page.evaluate(() => window.ble.emitLog('4000 before reload\n'));
+  await page.reload();
+
+  await page.getByRole('button', { name: 'ログ' }).click();
+  const log = page.getByRole('log', { name: '動作ログ' });
+  await expect(log).toContainText('boat 4000 before reload');
+
+  await page.getByRole('button', { name: 'クリア' }).click();
+  await expect(log).toContainText('ログはまだありません');
+  await page.reload();
+  await page.getByRole('button', { name: 'ログ' }).click();
+  await expect(log).not.toContainText('4000 before reload');
+});

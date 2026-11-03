@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { BoatLink, type LinkStatus } from './lib/boatLink';
-import type { LogEntry, LogSource } from './lib/logStream';
 import {
   axesToCommand,
   encodeFrame,
@@ -11,9 +10,9 @@ import {
   type DriveMode,
   type MotorCommand,
 } from './lib/drive';
+import { useLogStore } from './logStore';
 
 const NEUTRAL: Axes = { a: 0, b: 0 };
-const MAX_LOG_ENTRIES = 5000;
 
 interface BoatState {
   mode: DriveMode;
@@ -22,14 +21,11 @@ interface BoatState {
   stopLatched: boolean;
   status: LinkStatus;
   error?: string;
-  logs: LogEntry[];
   setMode: (mode: DriveMode) => void;
   setMaxOutput: (maxOutput: number) => void;
   setAxes: (axes: Partial<Axes>) => void;
   resetAxes: () => void;
   toggleStop: () => void;
-  addLog: (source: LogSource, text: string) => void;
-  clearLogs: () => void;
 }
 
 export const useBoatStore = create<BoatState>()(
@@ -40,17 +36,11 @@ export const useBoatStore = create<BoatState>()(
       axes: NEUTRAL,
       stopLatched: false,
       status: 'idle',
-      logs: [],
       setMode: (mode) => set({ mode, axes: NEUTRAL }),
       setMaxOutput: (maxOutput) => set({ maxOutput }),
       setAxes: (axes) => set((state) => ({ axes: { ...state.axes, ...axes } })),
       resetAxes: () => set({ axes: NEUTRAL }),
       toggleStop: () => set((state) => ({ stopLatched: !state.stopLatched, axes: NEUTRAL })),
-      addLog: (source, text) =>
-        set((state) => ({
-          logs: [...state.logs, { at: Date.now(), source, text }].slice(-MAX_LOG_ENTRIES),
-        })),
-      clearLogs: () => set({ logs: [] }),
     }),
     {
       name: 'boat-controller-settings',
@@ -74,5 +64,5 @@ export const boatLink = new BoatLink(
       useBoatStore.setState({ axes: NEUTRAL, stopLatched: false });
     }
   },
-  (source, text) => useBoatStore.getState().addLog(source, text),
+  (source, text) => useLogStore.getState().addLog(source, text),
 );

@@ -28,8 +28,9 @@ export class LineAssembler {
 export function formatLogEntry({ at, source, text }: LogEntry): string {
   const time = new Date(at);
   const pad = (value: number, length = 2) => String(value).padStart(length, '0');
+  const date = `${pad(time.getMonth() + 1)}-${pad(time.getDate())}`;
   const clock = `${pad(time.getHours())}:${pad(time.getMinutes())}:${pad(time.getSeconds())}.${pad(time.getMilliseconds(), 3)}`;
-  return `${clock} ${source.padEnd(4)} ${text}`;
+  return `${date} ${clock} ${source.padEnd(4)} ${text}`;
 }
 
 export function logFileName(now: Date): string {

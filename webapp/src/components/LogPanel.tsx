@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { formatLogEntry, logFileName } from '../lib/logStream';
-import { useBoatStore } from '../store';
+import { useLogStore } from '../logStore';
 
 const button = 'min-h-11 w-20 whitespace-nowrap rounded-lg border border-ink font-bold disabled:opacity-40';
 const STICK_TO_BOTTOM_PX = 40;
@@ -15,8 +15,8 @@ function saveLog(lines: string[]) {
 }
 
 export function LogPanel({ onClose }: { onClose: () => void }) {
-  const logs = useBoatStore((state) => state.logs);
-  const clearLogs = useBoatStore((state) => state.clearLogs);
+  const logs = useLogStore((state) => state.logs);
+  const clearLogs = useLogStore((state) => state.clearLogs);
   const list = useRef<HTMLDivElement>(null);
   const followLatest = useRef(true);
   const lines = logs.map(formatLogEntry);

@@ -24,13 +24,13 @@ describe('LineAssembler', () => {
 });
 
 describe('formatLogEntry', () => {
-  it('時刻、送信元、本文を並べる', () => {
+  it('日時、送信元、本文を並べる', () => {
     const at = new Date(2026, 10, 3, 9, 5, 7, 42).getTime();
     expect(formatLogEntry({ at, source: 'app', text: '接続しました' })).toBe(
-      '09:05:07.042 app  接続しました',
+      '11-03 09:05:07.042 app  接続しました',
     );
     expect(formatLogEntry({ at, source: 'boat', text: '123 boot' })).toBe(
-      '09:05:07.042 boat 123 boot',
+      '11-03 09:05:07.042 boat 123 boot',
     );
   });
 });
