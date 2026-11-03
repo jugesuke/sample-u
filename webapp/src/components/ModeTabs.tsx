@@ -3,7 +3,7 @@ import { useBoatStore } from '../store';
 
 const MODES: { mode: DriveMode; label: string }[] = [
   { mode: 'joystick', label: 'スティック' },
-  { mode: 'tank', label: '左右スライダー' },
+  { mode: 'tank', label: '左右独立' },
   { mode: 'throttleRudder', label: 'スロットル+舵' },
 ];
 
@@ -18,7 +18,7 @@ export function ModeTabs() {
           key={mode}
           aria-pressed={mode === current}
           onClick={() => setMode(mode)}
-          className={`min-h-11 flex-1 px-2 text-sm font-bold first:rounded-l-lg last:rounded-r-lg ${
+          className={`min-h-11 flex-1 whitespace-nowrap px-2 text-sm font-bold first:rounded-l-lg last:rounded-r-lg ${
             mode === current ? 'bg-ink text-paper' : ''
           }`}
         >

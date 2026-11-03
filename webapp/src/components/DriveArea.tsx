@@ -19,11 +19,12 @@ export function DriveArea() {
         </div>
       )}
       {mode === 'throttleRudder' && (
-        <div className="flex h-full items-center gap-4 portrait:flex-col">
+        <div className="flex h-full items-center gap-4 portrait:flex-col landscape:justify-between">
           <div className="min-h-0 portrait:flex-1 landscape:h-full">
             <SpringSlider label="スロットル" orientation="vertical" value={axes.b} onChange={(b) => setAxes({ b })} />
           </div>
-          <div className="w-full min-w-0 landscape:flex-1">
+          {/* 横持ちでは右手の親指が届くよう右半分に置く */}
+          <div className="w-full min-w-0 landscape:w-1/2">
             <SpringSlider label="舵" orientation="horizontal" value={axes.a} onChange={(a) => setAxes({ a })} />
           </div>
         </div>

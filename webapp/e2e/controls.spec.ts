@@ -117,9 +117,9 @@ test('ジョイスティック: 前に倒すと前進し、真横でその場旋
   await waitForOutput(page, 0, 0);
 });
 
-test('左右スライダー: 両手で同時に操作でき、離すと0に戻る', async ({ page, context }) => {
+test('左右独立: 両手で同時に操作でき、離すと0に戻る', async ({ page, context }) => {
   await openConnected(page);
-  await page.getByRole('button', { name: '左右スライダー' }).click();
+  await page.getByRole('button', { name: '左右独立' }).click();
   const cdp = await context.newCDPSession(page);
   const left = await center(page.getByRole('slider', { name: '左' }));
   const right = await center(page.getByRole('slider', { name: '右' }));
@@ -228,11 +228,11 @@ test('画面が隠れると停止値を1回送って送信を止め、戻ると�
 test('選んだモードと最大出力は再読み込み後も残る', async ({ page }) => {
   await installBluetoothMock(page);
   await page.goto('/');
-  await page.getByRole('button', { name: '左右スライダー' }).click();
+  await page.getByRole('button', { name: '左右独立' }).click();
   await page.getByRole('slider', { name: '最大出力' }).focus();
   await page.keyboard.press('Home');
   await page.reload();
-  await expect(page.getByRole('button', { name: '左右スライダー' })).toHaveAttribute(
+  await expect(page.getByRole('button', { name: '左右独立' })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
@@ -246,7 +246,7 @@ for (const { name, viewport } of [
   test(`全モードが画面に収まる (${name})`, async ({ page }, info) => {
     await page.setViewportSize(viewport);
     await openConnected(page);
-    for (const [index, mode] of ['スティック', '左右スライダー', 'スロットル+舵'].entries()) {
+    for (const [index, mode] of ['スティック', '左右独立', 'スロットル+舵'].entries()) {
       await page.getByRole('button', { name: mode }).click();
       const overflow = await page.evaluate(() => ({
         x: document.documentElement.scrollWidth - window.innerWidth,
