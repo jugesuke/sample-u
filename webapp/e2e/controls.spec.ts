@@ -207,7 +207,7 @@ test('STOPは解除するまで0を送り続ける', async ({ page, context }) =
 test('切断されると表示して送信を止め、再接続できる', async ({ page }) => {
   await openConnected(page);
   await page.evaluate(() => window.ble.dropConnection());
-  await expect(linkStatus(page)).toHaveText('切断されました');
+  await expect(linkStatus(page)).toHaveText('切断済み');
 
   const count = await frameCount(page);
   await page.waitForTimeout(200);
@@ -327,7 +327,7 @@ test('状態が変わってもボタンのサイズは変わらない', async ({
   expect(await size(page.getByRole('button', { name: '切断' }))).toEqual(connect);
   await page.evaluate(() => window.ble.dropConnection());
   expect(await size(page.getByRole('button', { name: '再接続' }))).toEqual(connect);
-  expect(await size(page.getByRole('button', { name: '船を選び直す' }))).toEqual(connect);
+  expect(await size(page.getByRole('button', { name: '選び直す' }))).toEqual(connect);
 });
 
 for (const viewport of [
@@ -464,4 +464,20 @@ test('書き込みが詰まるとWARNとして記録される', async ({ page })
   });
   await page.getByRole('button', { name: 'ログ' }).click();
   await expect(page.getByRole('log', { name: '動作ログ' })).toContainText(/WARN {2}app {2}tx seq=\d+ .* skip=[1-9]/);
+});
+
+test('Pixel 7aの幅では切断後も接続まわりが1行に収まる', async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 839 });
+  await openConnected(page);
+  await page.evaluate(() => window.ble.dropConnection());
+  await expect(linkStatus(page)).toHaveText('切断済み');
+
+  const tops = await Promise.all(
+    ['ログ', '選び直す', '再接続'].map(async (name) => {
+      const button = page.getByRole('button', { name });
+      await expectTextFits(button);
+      return (await button.boundingBox())!.y;
+    }),
+  );
+  expect(new Set(tops).size).toBe(1);
 });

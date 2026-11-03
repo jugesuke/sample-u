@@ -5,11 +5,11 @@ const STATUS_LABEL = {
   idle: '未接続',
   connecting: '接続中…',
   connected: '接続済み',
-  disconnected: '切断されました',
+  disconnected: '切断済み',
 } as const;
 
 // 状態が変わってもサイズが変わらないよう、幅と枠線の太さを揃える
-const buttonBase = 'min-h-11 w-28 whitespace-nowrap rounded-lg border font-bold';
+const buttonBase = 'min-h-11 w-24 whitespace-nowrap rounded-lg border font-bold';
 const primaryButton = `${buttonBase} border-accent bg-accent text-white disabled:opacity-50`;
 const secondaryButton = `${buttonBase} border-ink`;
 
@@ -62,7 +62,7 @@ export function ConnectionBar({ onOpenLog }: { onOpenLog: () => void }) {
         {status === 'disconnected' && (
           <>
             <button className={secondaryButton} onClick={() => void boatLink.choose()}>
-              船を選び直す
+              選び直す
             </button>
             <button className={primaryButton} onClick={() => void boatLink.connect()}>
               再接続
