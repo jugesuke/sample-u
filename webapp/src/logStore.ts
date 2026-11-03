@@ -1,13 +1,13 @@
 import { create } from 'zustand';
-import type { LogEntry, LogSource } from './lib/logStream';
+import type { LogEntry, LogLevel, LogSource } from './lib/logStream';
 
-const STORAGE_KEY = 'boat-controller-logs';
-const MAX_LOG_ENTRIES = 5000;
+const STORAGE_KEY = 'boat-controller-logs-v2';
+const MAX_LOG_ENTRIES = 10000;
 const SAVE_DELAY_MS = 1000;
 
 interface LogState {
   logs: LogEntry[];
-  addLog: (source: LogSource, text: string) => void;
+  addLog: (level: LogLevel, source: LogSource, text: string) => void;
   clearLogs: () => void;
 }
 
@@ -22,9 +22,9 @@ function loadLogs(): LogEntry[] {
 
 export const useLogStore = create<LogState>()((set) => ({
   logs: loadLogs(),
-  addLog: (source, text) =>
+  addLog: (level, source, text) =>
     set((state) => ({
-      logs: [...state.logs, { at: Date.now(), source, text }].slice(-MAX_LOG_ENTRIES),
+      logs: [...state.logs, { at: Date.now(), level, source, text }].slice(-MAX_LOG_ENTRIES),
     })),
   clearLogs: () => set({ logs: [] }),
 }));
@@ -51,4 +51,4 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') saveLogs();
 });
 
-useLogStore.getState().addLog('app', 'アプリ起動');
+useLogStore.getState().addLog('INFO', 'app', 'アプリ起動');

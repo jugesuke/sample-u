@@ -4,6 +4,7 @@ declare global {
   interface Window {
     ble: {
       frames: [number, number][];
+      seqs: number[];
       maxConcurrentWrites: number;
       writeDelayMs: number;
       dropConnection: () => void;
@@ -17,6 +18,7 @@ async function installBluetoothMock(page: Page) {
   await page.addInitScript(() => {
     const ble: Window['ble'] = {
       frames: [],
+      seqs: [],
       maxConcurrentWrites: 0,
       writeDelayMs: 0,
       dropConnection: () => {},
@@ -24,10 +26,11 @@ async function installBluetoothMock(page: Page) {
     };
     let concurrent = 0;
     const characteristic = {
-      writeValueWithoutResponse: async (value: Int8Array) => {
+      writeValueWithoutResponse: async (value: Uint8Array) => {
         concurrent += 1;
         ble.maxConcurrentWrites = Math.max(ble.maxConcurrentWrites, concurrent);
-        ble.frames.push([value[0], value[1]]);
+        ble.seqs.push(value[0] | (value[1] << 8));
+        ble.frames.push([(value[2] << 24) >> 24, (value[3] << 24) >> 24]);
         await new Promise((resolve) => setTimeout(resolve, ble.writeDelayMs));
         concurrent -= 1;
       },
@@ -365,16 +368,16 @@ for (const viewport of [
 test('船のログは分割されて届いても1行で表示され、保存とクリアができる', async ({ page }) => {
   await openConnected(page);
   await page.evaluate(() => {
-    window.ble.emitLog('1000 failsafe sto');
-    window.ble.emitLog('p: no command\n2000 ');
+    window.ble.emitLog('WARN 1000 failsafe sto');
+    window.ble.emitLog('p: no command\nINFO 2000 ');
     window.ble.emitLog('commands active\n');
   });
 
   await page.getByRole('button', { name: 'ログ' }).click();
   const log = page.getByRole('log', { name: '動作ログ' });
-  await expect(log).toContainText('boat 1000 failsafe stop: no command');
-  await expect(log).toContainText('boat 2000 commands active');
-  await expect(log).toContainText('app  接続完了');
+  await expect(log).toContainText('WARN  boat 1000 failsafe stop: no command');
+  await expect(log).toContainText('INFO  boat 2000 commands active');
+  await expect(log).toContainText(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z INFO  app  接続完了/);
 
   for (const name of ['保存', 'クリア', '閉じる']) {
     await expectTextFits(page.getByRole('button', { name }));
@@ -391,11 +394,12 @@ test('船のログは分割されて届いても1行で表示され、保存と�
     page.waitForEvent('download'),
     page.getByRole('button', { name: '保存' }).click(),
   ]);
-  expect(download.suggestedFilename()).toMatch(/^boat-log-\d{8}-\d{6}\.txt$/);
+  expect(download.suggestedFilename()).toMatch(/^boat-log-[\dT-]+Z\.txt$/);
   const saved = await page.evaluate(() =>
     (window as unknown as { savedLog: Blob }).savedLog.text(),
   );
   expect(saved).toContain('boat 1000 failsafe stop: no command');
+  expect(saved).toContain('DEBUG app  tx seq='); // 表示の絞り込みに関係なく全行を保存する
 
   await page.getByRole('button', { name: 'クリア' }).click();
   await expect(log).toContainText('ログはまだありません');
@@ -413,13 +417,13 @@ test('ログ画面を開くと操作は中立に戻り、受信は続く', async
   await expect.poll(() => latestFrame(page)).toEqual([0, 0]);
   await touch(cdp, 'touchEnd', []);
 
-  await page.evaluate(() => window.ble.emitLog('3000 while open\n'));
+  await page.evaluate(() => window.ble.emitLog('INFO 3000 while open\n'));
   await expect(page.getByRole('log', { name: '動作ログ' })).toContainText('3000 while open');
 });
 
 test('ログは再読み込み後も残り、クリアすると消える', async ({ page }) => {
   await openConnected(page);
-  await page.evaluate(() => window.ble.emitLog('4000 before reload\n'));
+  await page.evaluate(() => window.ble.emitLog('INFO 4000 before reload\n'));
   await page.reload();
 
   await page.getByRole('button', { name: 'ログ' }).click();
@@ -431,4 +435,33 @@ test('ログは再読み込み後も残り、クリアすると消える', async
   await page.reload();
   await page.getByRole('button', { name: 'ログ' }).click();
   await expect(log).not.toContainText('4000 before reload');
+});
+
+test('送信の通し番号が連続し、操作入力とともにDEBUGログに残る', async ({ page, context }) => {
+  await openConnected(page);
+  const cdp = await context.newCDPSession(page);
+  await pushJoystickForward(page, cdp);
+  await waitForOutput(page, 100, 100);
+  await touch(cdp, 'touchEnd', []);
+  await waitForOutput(page, 0, 0);
+
+  const seqs = await page.evaluate(() => window.ble.seqs);
+  expect(seqs.length).toBeGreaterThan(1);
+  expect(seqs).toEqual(seqs.map((_, index) => seqs[0] + index));
+
+  await page.getByRole('button', { name: 'ログ' }).click();
+  const log = page.getByRole('log', { name: '動作ログ' });
+  await expect(log).not.toContainText(' tx seq=');
+  await page.getByLabel('表示レベル').selectOption('DEBUG');
+  await expect(log).toContainText(/DEBUG app {2}tx seq=\d+ L=100 R=100 mode=joystick a=0 b=100 max=100 stop=0 n=\d+ skip=0 fail=0/);
+  await expect(log).toContainText(/tx seq=\d+ L=0 R=0 mode=joystick a=0 b=0/);
+});
+
+test('書き込みが詰まるとWARNとして記録される', async ({ page }) => {
+  await openConnected(page);
+  await page.evaluate(() => {
+    window.ble.writeDelayMs = 300;
+  });
+  await page.getByRole('button', { name: 'ログ' }).click();
+  await expect(page.getByRole('log', { name: '動作ログ' })).toContainText(/WARN {2}app {2}tx seq=\d+ .* skip=[1-9]/);
 });

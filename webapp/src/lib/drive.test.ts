@@ -50,9 +50,8 @@ describe('limitCommand', () => {
 });
 
 describe('encodeFrame', () => {
-  it('2バイトの符号付き整数にする', () => {
-    const frame = encodeFrame({ left: -100, right: 100 });
-    expect(frame.byteLength).toBe(2);
-    expect(Array.from(new Uint8Array(frame.buffer))).toEqual([0x9c, 0x64]);
+  it('通し番号と左右の指令を4バイトにする', () => {
+    const frame = encodeFrame(0x1234, { left: -100, right: 100 });
+    expect(Array.from(frame)).toEqual([0x34, 0x12, 0x9c, 0x64]);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatLogEntry, LineAssembler, logFileName } from './logStream';
+import { formatLogEntry, LineAssembler, logFileName, parseBoatLine } from './logStream';
 
 const bytes = (text: string) => new TextEncoder().encode(text);
 
@@ -23,20 +23,29 @@ describe('LineAssembler', () => {
   });
 });
 
+describe('parseBoatLine', () => {
+  it('レベルと本文に分ける', () => {
+    expect(parseBoatLine('DEBUG 1000 rx seq=1')).toEqual({ level: 'DEBUG', text: '1000 rx seq=1' });
+  });
+
+  it('レベルが読めない行は本文を残してWARNにする', () => {
+    expect(parseBoatLine('壊れた 行')).toEqual({ level: 'WARN', text: '壊れた 行' });
+  });
+});
+
 describe('formatLogEntry', () => {
-  it('日時、送信元、本文を並べる', () => {
-    const at = new Date(2026, 10, 3, 9, 5, 7, 42).getTime();
-    expect(formatLogEntry({ at, source: 'app', text: '接続しました' })).toBe(
-      '11-03 09:05:07.042 app  接続しました',
-    );
-    expect(formatLogEntry({ at, source: 'boat', text: '123 boot' })).toBe(
-      '11-03 09:05:07.042 boat 123 boot',
+  it('ISO 8601の日時、レベル、送信元、本文を並べる', () => {
+    const at = Date.UTC(2026, 10, 3, 9, 5, 7, 42);
+    expect(formatLogEntry({ at, level: 'INFO', source: 'app', text: '接続完了' })).toBe(
+      '2026-11-03T09:05:07.042Z INFO  app  接続完了',
     );
   });
 });
 
 describe('logFileName', () => {
   it('日時を含むファイル名にする', () => {
-    expect(logFileName(new Date(2026, 10, 3, 9, 5, 7))).toBe('boat-log-20261103-090507.txt');
+    expect(logFileName(new Date(Date.UTC(2026, 10, 3, 9, 5, 7)))).toBe(
+      'boat-log-2026-11-03T09-05-07Z.txt',
+    );
   });
 });

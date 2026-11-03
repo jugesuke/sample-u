@@ -3,7 +3,6 @@ import { persist } from 'zustand/middleware';
 import { BoatLink, type LinkStatus } from './lib/boatLink';
 import {
   axesToCommand,
-  encodeFrame,
   limitCommand,
   STOPPED,
   type Axes,
@@ -56,13 +55,19 @@ export function selectOutput(state: BoatState): MotorCommand {
 }
 
 export const boatLink = new BoatLink(
-  () => encodeFrame(selectOutput(useBoatStore.getState())),
-  encodeFrame(STOPPED),
+  () => {
+    const state = useBoatStore.getState();
+    const { mode, axes, maxOutput, stopLatched } = state;
+    return {
+      command: selectOutput(state),
+      input: `mode=${mode} a=${Math.round(axes.a)} b=${Math.round(axes.b)} max=${maxOutput} stop=${Number(stopLatched)}`,
+    };
+  },
   (status, error) => {
     useBoatStore.setState({ status, error });
     if (status !== 'connected') {
       useBoatStore.setState({ axes: NEUTRAL, stopLatched: false });
     }
   },
-  (source, text) => useLogStore.getState().addLog(source, text),
+  (level, source, text) => useLogStore.getState().addLog(level, source, text),
 );

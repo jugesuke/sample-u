@@ -37,7 +37,7 @@ export function limitCommand(command: MotorCommand, maxOutput: number): MotorCom
   return { left: limit(command.left), right: limit(command.right) };
 }
 
-/** BLEフレーム: [int8 左, int8 右] */
-export function encodeFrame(command: MotorCommand): Int8Array<ArrayBuffer> {
-  return Int8Array.of(command.left, command.right);
+/** BLEフレーム: [uint16 通し番号(リトルエンディアン), int8 左, int8 右] */
+export function encodeFrame(seq: number, command: MotorCommand): Uint8Array<ArrayBuffer> {
+  return Uint8Array.of(seq & 0xff, seq >> 8, command.left, command.right);
 }

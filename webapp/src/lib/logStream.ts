@@ -1,8 +1,11 @@
+export const LOG_LEVELS = ['ERROR', 'WARN', 'INFO', 'DEBUG'] as const;
+export type LogLevel = (typeof LOG_LEVELS)[number];
 export type LogSource = 'boat' | 'app';
 
 export interface LogEntry {
   /** 受信または記録した時刻(ミリ秒) */
   at: number;
+  level: LogLevel;
   source: LogSource;
   text: string;
 }
@@ -25,17 +28,19 @@ export class LineAssembler {
   }
 }
 
-export function formatLogEntry({ at, source, text }: LogEntry): string {
-  const time = new Date(at);
-  const pad = (value: number, length = 2) => String(value).padStart(length, '0');
-  const date = `${pad(time.getMonth() + 1)}-${pad(time.getDate())}`;
-  const clock = `${pad(time.getHours())}:${pad(time.getMinutes())}:${pad(time.getSeconds())}.${pad(time.getMilliseconds(), 3)}`;
-  return `${date} ${clock} ${source.padEnd(4)} ${text}`;
+/** 船のログ行 `<LEVEL> <起動後ミリ秒> <本文>` からレベルを取り出す */
+export function parseBoatLine(line: string): { level: LogLevel; text: string } {
+  const separator = line.indexOf(' ');
+  const level = line.slice(0, separator) as LogLevel;
+  return LOG_LEVELS.includes(level)
+    ? { level, text: line.slice(separator + 1) }
+    : { level: 'WARN', text: line };
+}
+
+export function formatLogEntry({ at, level, source, text }: LogEntry): string {
+  return `${new Date(at).toISOString()} ${level.padEnd(5)} ${source.padEnd(4)} ${text}`;
 }
 
 export function logFileName(now: Date): string {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
-  const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  return `boat-log-${date}-${time}.txt`;
+  return `boat-log-${now.toISOString().slice(0, 19).replaceAll(':', '-')}Z.txt`;
 }

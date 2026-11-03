@@ -28,7 +28,8 @@ constexpr uint32_t PWM_MAX = (1u << PWM_RES_BITS) - 1;
 constexpr uint32_t COMMAND_TIMEOUT_MS = 500;  // この間受信がなければ停止する
 constexpr uint32_t RAMP_FULL_SCALE_MS = 300;  // 出力 0→100% に掛ける時間
 constexpr uint32_t LOOP_INTERVAL_MS = 10;
-constexpr uint32_t STATUS_INTERVAL_MS = 1000;  // 接続中に状態をログへ出す間隔
+constexpr uint32_t REPORT_INTERVAL_MS = 1000;     // 接続中は変化がなくてもこの間隔でrx行を出す
+constexpr uint32_t REPORT_MIN_INTERVAL_MS = 200;  // 値が変化したときにrx行を出す最短間隔
 
 // ---- BLE(webapp/src/lib/protocol.ts と揃える) ----------------------------
 
@@ -37,11 +38,11 @@ const char *const SERVICE_UUID = "7c1f0a10-5b3e-4d2a-9f61-2a8e4c7d1b00";
 const char *const COMMAND_CHAR_UUID = "7c1f0a11-5b3e-4d2a-9f61-2a8e4c7d1b00";
 const char *const LOG_CHAR_UUID = "7c1f0a12-5b3e-4d2a-9f61-2a8e4c7d1b00";
 
-constexpr size_t COMMAND_FRAME_LENGTH = 2;  // [int8 左, int8 右]
+constexpr size_t COMMAND_FRAME_LENGTH = 4;  // [uint16 通し番号(LE), int8 左, int8 右]
 constexpr int COMMAND_MAX = 100;
 
 constexpr size_t LOG_LINE_COUNT = 64;   // 未送信のログを溜めておく行数
-constexpr size_t LOG_LINE_LENGTH = 80;
+constexpr size_t LOG_LINE_LENGTH = 120;
 constexpr size_t LOG_CHUNK_LENGTH = 20;  // どのMTUでも1回の通知に収まる長さ
 
 // ---- BLEタスクとloop()で共有する状態(sharedMuxで保護) --------------------
@@ -54,9 +55,12 @@ bool sharedHasCommand = false;  // 今回の接続で有効なフレームを受
 bool sharedRestartAdvertising = false;
 bool sharedConnected = false;
 bool sharedLogSubscribed = false;
-uint32_t sharedFrameCount = 0;     // 前回の状態ログ以降の有効フレーム数
-uint32_t sharedMaxGapMs = 0;       // 前回の状態ログ以降の最大受信間隔
-uint32_t sharedInvalidFrames = 0;  // 起動後の不正フレーム数(累計)
+uint16_t sharedSeq = 0;            // 最後に受信した通し番号
+// 以下は前回のrx行以降の集計
+uint32_t sharedFrameCount = 0;     // 有効フレーム数
+uint32_t sharedLostFrames = 0;     // 通し番号の欠け
+uint32_t sharedMaxGapMs = 0;       // 最大受信間隔
+uint32_t sharedInvalidFrames = 0;  // 不正フレーム数
 
 // ---- ログ(sharedMuxで保護) ------------------------------------------------
 
@@ -68,9 +72,9 @@ uint32_t logDropped = 0;   // 溢れて捨てた行数(累計)
 BLECharacteristic *logCharacteristic = nullptr;
 
 // 1行を記録する。BLEタスクとloop()のどちらからでも呼べる
-void logEvent(const char *format, ...) {
+void logEvent(const char *level, const char *format, ...) {
   char line[LOG_LINE_LENGTH];
-  const int prefix = snprintf(line, sizeof(line), "%lu ", static_cast<unsigned long>(millis()));
+  const int prefix = snprintf(line, sizeof(line), "%s %lu ", level, static_cast<unsigned long>(millis()));
   va_list args;
   va_start(args, format);
   vsnprintf(line + prefix, sizeof(line) - prefix, format, args);
@@ -118,8 +122,8 @@ void sendLogChunk() {
   }
 }
 
-const char *resetReasonName() {
-  switch (esp_reset_reason()) {
+const char *resetReasonName(esp_reset_reason_t reason) {
+  switch (reason) {
     case ESP_RST_POWERON: return "POWERON";
     case ESP_RST_EXT: return "EXTERNAL";
     case ESP_RST_SW: return "SOFTWARE";
@@ -139,31 +143,34 @@ const char *resetReasonName() {
 float currentLeft = 0;
 float currentRight = 0;
 uint32_t lastLoopMs = 0;
-uint32_t lastStatusMs = 0;
+uint32_t dutyLeft[2] = {0, 0};   // 直近に書き込んだPWM値 [IN_A, IN_B]
+uint32_t dutyRight[2] = {0, 0};
 bool commandsActive = false;  // 指令を受信して動作できる状態か
 
 // スローディケイ駆動: 片側をH固定、もう片側をPWMして駆動/ブレーキを交互に行う。
 // L/L を交互に使うとPWM周期ごとにICが待機モードへ入るため避けている。
-void applyMotor(uint8_t pinA, uint8_t pinB, float speed, bool invert) {
+void applyMotor(uint8_t pinA, uint8_t pinB, float speed, bool invert, uint32_t *duty) {
   if (invert) {
     speed = -speed;
   }
   const uint32_t drive = lroundf(fabsf(speed) / COMMAND_MAX * PWM_MAX);
   if (drive == 0) {
-    ledcWrite(pinA, 0);  // L/L: 惰性停止
-    ledcWrite(pinB, 0);
+    duty[0] = 0;  // L/L: 惰性停止
+    duty[1] = 0;
   } else if (speed > 0) {
-    ledcWrite(pinA, PWM_MAX);
-    ledcWrite(pinB, PWM_MAX - drive);
+    duty[0] = PWM_MAX;
+    duty[1] = PWM_MAX - drive;
   } else {
-    ledcWrite(pinA, PWM_MAX - drive);
-    ledcWrite(pinB, PWM_MAX);
+    duty[0] = PWM_MAX - drive;
+    duty[1] = PWM_MAX;
   }
+  ledcWrite(pinA, duty[0]);
+  ledcWrite(pinB, duty[1]);
 }
 
 void applyOutputs() {
-  applyMotor(PIN_ML_IN_A, PIN_ML_IN_B, currentLeft, MOTOR_L_INVERT);
-  applyMotor(PIN_MR_IN_A, PIN_MR_IN_B, currentRight, MOTOR_R_INVERT);
+  applyMotor(PIN_ML_IN_A, PIN_ML_IN_B, currentLeft, MOTOR_L_INVERT, dutyLeft);
+  applyMotor(PIN_MR_IN_A, PIN_MR_IN_B, currentRight, MOTOR_R_INVERT, dutyRight);
 }
 
 float rampToward(float current, float target, float maxStep) {
@@ -180,10 +187,8 @@ class ServerCallbacks : public BLEServerCallbacks {
     portENTER_CRITICAL(&sharedMux);
     sharedHasCommand = false;
     sharedConnected = true;
-    sharedFrameCount = 0;
-    sharedMaxGapMs = 0;
     portEXIT_CRITICAL(&sharedMux);
-    logEvent("connected");
+    logEvent("INFO", "connected");
   }
 
   void onDisconnect(BLEServer *) override {
@@ -194,7 +199,7 @@ class ServerCallbacks : public BLEServerCallbacks {
     sharedRestartAdvertising = true;
     logSendOffset = 0;  // 受信側は途中の行を捨てるので、次回は行の先頭から送る
     portEXIT_CRITICAL(&sharedMux);
-    logEvent("disconnected");
+    logEvent("INFO", "disconnected");
   }
 };
 
@@ -207,14 +212,17 @@ class CommandCallbacks : public BLECharacteristicCallbacks {
       return;
     }
     const uint8_t *data = characteristic->getData();
-    const int8_t left = constrain(static_cast<int8_t>(data[0]), -COMMAND_MAX, COMMAND_MAX);
-    const int8_t right = constrain(static_cast<int8_t>(data[1]), -COMMAND_MAX, COMMAND_MAX);
+    const uint16_t seq = data[0] | (data[1] << 8);
+    const int8_t left = constrain(static_cast<int8_t>(data[2]), -COMMAND_MAX, COMMAND_MAX);
+    const int8_t right = constrain(static_cast<int8_t>(data[3]), -COMMAND_MAX, COMMAND_MAX);
     const uint32_t now = millis();
 
     portENTER_CRITICAL(&sharedMux);
-    if (sharedHasCommand && now - sharedLastCommandMs > sharedMaxGapMs) {
-      sharedMaxGapMs = now - sharedLastCommandMs;
+    if (sharedHasCommand) {
+      sharedLostFrames += static_cast<uint16_t>(seq - sharedSeq - 1);
+      sharedMaxGapMs = max(sharedMaxGapMs, now - sharedLastCommandMs);
     }
+    sharedSeq = seq;
     sharedFrameCount++;
     sharedTargetLeft = left;
     sharedTargetRight = right;
@@ -270,9 +278,46 @@ void setup() {
     ledcWrite(pin, 0);
   }
 
-  logEvent("boot reason=%s build=%s %s", resetReasonName(), __DATE__, __TIME__);
+  const esp_reset_reason_t reason = esp_reset_reason();
+  const bool abnormal = reason != ESP_RST_POWERON && reason != ESP_RST_SW && reason != ESP_RST_EXT;
+  logEvent(abnormal ? "ERROR" : "INFO", "boot reason=%s build=%s %s", resetReasonName(reason), __DATE__, __TIME__);
   setupBle();
   lastLoopMs = millis();
+}
+
+// 指令の受信から出力までを1行に記録する。値が変わったときと、変化がなくても一定間隔で出す
+void reportCommand(uint32_t now, int targetLeft, int targetRight) {
+  static uint32_t lastReportMs = 0;
+  static int reported[4] = {0, 0, 0, 0};
+  const int current[4] = {targetLeft, targetRight, static_cast<int>(lroundf(currentLeft)),
+                          static_cast<int>(lroundf(currentRight))};
+  const uint32_t elapsed = now - lastReportMs;
+  const bool changed = memcmp(current, reported, sizeof(current)) != 0;
+  if (elapsed < REPORT_MIN_INTERVAL_MS || (!changed && elapsed < REPORT_INTERVAL_MS)) {
+    return;
+  }
+  lastReportMs = now;
+  memcpy(reported, current, sizeof(current));
+
+  portENTER_CRITICAL(&sharedMux);
+  const unsigned seq = sharedSeq;
+  const unsigned long frames = sharedFrameCount;
+  const unsigned long lost = sharedLostFrames;
+  const unsigned long gap = sharedMaxGapMs;
+  const unsigned long bad = sharedInvalidFrames;
+  const unsigned long dropped = logDropped;
+  sharedFrameCount = 0;
+  sharedLostFrames = 0;
+  sharedMaxGapMs = 0;
+  sharedInvalidFrames = 0;
+  portEXIT_CRITICAL(&sharedMux);
+
+  logEvent(lost > 0 || bad > 0 ? "WARN" : "DEBUG",
+           "rx seq=%u L=%d R=%d out=%d,%d duty=%lu/%lu,%lu/%lu n=%lu lost=%lu gap=%lums bad=%lu drop=%lu",
+           seq, targetLeft, targetRight, current[2], current[3],
+           static_cast<unsigned long>(dutyLeft[0]), static_cast<unsigned long>(dutyLeft[1]),
+           static_cast<unsigned long>(dutyRight[0]), static_cast<unsigned long>(dutyRight[1]),
+           frames, lost, gap, bad, dropped);
 }
 
 void loop() {
@@ -297,11 +342,11 @@ void loop() {
   if (active != commandsActive) {
     commandsActive = active;
     if (active) {
-      logEvent("commands active");
+      logEvent("INFO", "commands active");
     } else if (connected) {
-      logEvent("failsafe stop: no command for %lums", static_cast<unsigned long>(now - lastCommandMs));
+      logEvent("WARN", "failsafe stop: no command for %lums", static_cast<unsigned long>(now - lastCommandMs));
     } else {
-      logEvent("failsafe stop: disconnected");
+      logEvent("WARN", "failsafe stop: disconnected");
     }
   }
 
@@ -318,22 +363,8 @@ void loop() {
 
   applyOutputs();
 
-  if (connected && now - lastStatusMs >= STATUS_INTERVAL_MS) {
-    lastStatusMs = now;
-    portENTER_CRITICAL(&sharedMux);
-    const uint32_t frames = sharedFrameCount;
-    const uint32_t maxGap = sharedMaxGapMs;
-    const uint32_t invalid = sharedInvalidFrames;
-    const uint32_t dropped = logDropped;
-    sharedFrameCount = 0;
-    sharedMaxGapMs = 0;
-    portEXIT_CRITICAL(&sharedMux);
-    logEvent("st L%d>%d R%d>%d rx=%lu gap=%lums bad=%lu drop=%lu heap=%luk",
-             targetLeft, static_cast<int>(lroundf(currentLeft)),
-             targetRight, static_cast<int>(lroundf(currentRight)),
-             static_cast<unsigned long>(frames), static_cast<unsigned long>(maxGap),
-             static_cast<unsigned long>(invalid), static_cast<unsigned long>(dropped),
-             static_cast<unsigned long>(ESP.getFreeHeap() / 1024));
+  if (connected) {
+    reportCommand(now, targetLeft, targetRight);
   }
 
   sendLogChunk();
