@@ -2,6 +2,8 @@
 
 /* 屋外の直射日光でも読めるよう、明るい背景と濃い文字で統一する */
 @theme {
+  /* 端末の既定フォントでは漢字が中国語の字形になることがあるため、日本語フォントを同梱する */
+  --font-sans: 'Noto Sans JP Variable', 'Noto Sans JP', sans-serif;
   --color-paper: #f4f1ea;
   --color-card: #ffffff;
   --color-ink: #14202b;

@@ -254,7 +254,21 @@ for (const { name, viewport } of [
         main: document.querySelector('main')!.scrollHeight - window.innerHeight,
       }));
       expect(overflow).toEqual({ x: 0, y: 0, main: 0 });
+      await page.evaluate(() => document.fonts.ready);
       await page.screenshot({ path: info.outputPath(`${name}-${index}.png`) });
     }
   });
 }
+
+test('日本語フォントが読み込まれ、表示に使われる', async ({ page }) => {
+  await openConnected(page);
+  await page.evaluate(() => document.fonts.ready);
+  const font = await page.evaluate(() => ({
+    family: getComputedStyle(document.body).fontFamily,
+    loaded: [...document.fonts].some(
+      (face) => face.family.includes('Noto Sans JP') && face.status === 'loaded',
+    ),
+  }));
+  expect(font.family).toContain('Noto Sans JP');
+  expect(font.loaded).toBe(true);
+});
