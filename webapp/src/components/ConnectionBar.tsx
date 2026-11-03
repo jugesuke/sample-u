@@ -13,7 +13,7 @@ const buttonBase = 'min-h-11 w-28 whitespace-nowrap rounded-lg border font-bold'
 const primaryButton = `${buttonBase} border-accent bg-accent text-white disabled:opacity-50`;
 const secondaryButton = `${buttonBase} border-ink`;
 
-export function ConnectionBar() {
+export function ConnectionBar({ onOpenLog }: { onOpenLog: () => void }) {
   const status = useBoatStore((state) => state.status);
   const error = useBoatStore((state) => state.error);
   const support = bluetoothSupport();
@@ -37,6 +37,12 @@ export function ConnectionBar() {
         />
         {STATUS_LABEL[status]}
       </span>
+      <button
+        className="min-h-11 w-16 whitespace-nowrap rounded-lg border border-ink font-bold"
+        onClick={onOpenLog}
+      >
+        ログ
+      </button>
       <div className="ml-auto flex gap-2">
         {status === 'connected' && (
           <button className={secondaryButton} onClick={() => boatLink.disconnect()}>

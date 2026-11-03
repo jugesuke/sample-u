@@ -7,6 +7,7 @@ declare global {
       maxConcurrentWrites: number;
       writeDelayMs: number;
       dropConnection: () => void;
+      emitLog: (text: string) => void;
     };
   }
 }
@@ -19,6 +20,7 @@ async function installBluetoothMock(page: Page) {
       maxConcurrentWrites: 0,
       writeDelayMs: 0,
       dropConnection: () => {},
+      emitLog: () => {},
     };
     let concurrent = 0;
     const characteristic = {
@@ -30,7 +32,18 @@ async function installBluetoothMock(page: Page) {
         concurrent -= 1;
       },
     };
-    const service = { getCharacteristic: async () => characteristic };
+    const logCharacteristic = Object.assign(new EventTarget(), {
+      value: undefined as DataView | undefined,
+      startNotifications: async () => {},
+    });
+    ble.emitLog = (text) => {
+      logCharacteristic.value = new DataView(new TextEncoder().encode(text).buffer);
+      logCharacteristic.dispatchEvent(new Event('characteristicvaluechanged'));
+    };
+    const service = {
+      getCharacteristic: async (uuid: string) =>
+        uuid.startsWith('7c1f0a12') ? logCharacteristic : characteristic,
+    };
     const server = { getPrimaryService: async () => service };
     const device = new EventTarget() as EventTarget & { gatt: unknown };
     const drop = () => device.dispatchEvent(new Event('gattserverdisconnected'));
@@ -348,3 +361,58 @@ for (const viewport of [
     await checkAll(); // 切断後
   });
 }
+
+test('船のログは分割されて届いても1行で表示され、保存とクリアができる', async ({ page }) => {
+  await openConnected(page);
+  await page.evaluate(() => {
+    window.ble.emitLog('1000 failsafe sto');
+    window.ble.emitLog('p: no command\n2000 ');
+    window.ble.emitLog('commands active\n');
+  });
+
+  await page.getByRole('button', { name: 'ログ' }).click();
+  const log = page.getByRole('log', { name: '動作ログ' });
+  await expect(log).toContainText('boat 1000 failsafe stop: no command');
+  await expect(log).toContainText('boat 2000 commands active');
+  await expect(log).toContainText('app  接続完了');
+
+  for (const name of ['保存', 'クリア', '閉じる']) {
+    await expectTextFits(page.getByRole('button', { name }));
+  }
+
+  await page.evaluate(() => {
+    const original = URL.createObjectURL;
+    URL.createObjectURL = (blob) => {
+      (window as unknown as { savedLog: Blob }).savedLog = blob as Blob;
+      return original.call(URL, blob);
+    };
+  });
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: '保存' }).click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^boat-log-\d{8}-\d{6}\.txt$/);
+  const saved = await page.evaluate(() =>
+    (window as unknown as { savedLog: Blob }).savedLog.text(),
+  );
+  expect(saved).toContain('boat 1000 failsafe stop: no command');
+
+  await page.getByRole('button', { name: 'クリア' }).click();
+  await expect(log).toContainText('ログはまだありません');
+  await page.getByRole('button', { name: '閉じる' }).click();
+  await expect(linkStatus(page)).toHaveText('接続済み');
+});
+
+test('ログ画面を開くと操作は中立に戻り、受信は続く', async ({ page, context }) => {
+  await openConnected(page);
+  const cdp = await context.newCDPSession(page);
+  await pushJoystickForward(page, cdp);
+  await waitForOutput(page, 100, 100);
+
+  await page.getByRole('button', { name: 'ログ' }).dispatchEvent('click');
+  await expect.poll(() => latestFrame(page)).toEqual([0, 0]);
+  await touch(cdp, 'touchEnd', []);
+
+  await page.evaluate(() => window.ble.emitLog('3000 while open\n'));
+  await expect(page.getByRole('log', { name: '動作ログ' })).toContainText('3000 while open');
+});
