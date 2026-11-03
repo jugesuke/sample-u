@@ -6,7 +6,7 @@
 |---|---|
 | [firmware/boat_controller/](firmware/boat_controller/) | Arduino IDE用スケッチ |
 | [webapp/](webapp/) | Webアプリ(React + TypeScript、pnpm) |
-| [docs/](docs/) | 仕様書 |
+| [docs/](docs/) | 仕様書、実機確認の手順 |
 
 ## ファームウェアの書き込み
 
@@ -69,12 +69,4 @@ rx seq=1234 L=72 R=24 out=70,30 duty=1023/307,1023/716 n=4 lost=0 gap=58ms bad=0
 
 ## 実機での確認
 
-モックと違い、実機でしか確認できない項目です。最初は**プロペラを外して**行ってください。
-
-- [ ] 電源投入時にモーターが回らないか(回路の都合で、一瞬回る可能性があります。[仕様書 10章](docs/SPEC.md#10-回路上の注意))
-- [ ] Android Chromeから `SampleU-Boat` に接続できる
-- [ ] 各モードで左右のモーターが正しく回る。前進で逆に回るモーターは、スケッチ冒頭の `MOTOR_L_INVERT` / `MOTOR_R_INVERT` を `true` にする
-- [ ] 操作中に、切断、画面オフ、スマホのBluetooth OFFを行うと、0.5秒以内に止まる
-- [ ] 全開や急な反転で、再起動やBLE切断が起きない
-- [ ] 接続するとアプリの「ログ」に `boot` の行が届き、`DEBUG` 表示で `tx` と `rx` の `seq` が揃って増える
-- [ ] 消耗した電池(2V台前半)でも左右のモーターが正常に動き、ドライバICが異常に発熱しない
+確認の手順と、問題が出たときの情報の集め方は [docs/TESTING.md](docs/TESTING.md) を参照してください。
