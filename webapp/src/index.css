@@ -1,0 +1,28 @@
+@import 'tailwindcss';
+
+/* 屋外の直射日光でも読めるよう、明るい背景と濃い文字で統一する */
+@theme {
+  --color-paper: #f4f1ea;
+  --color-card: #ffffff;
+  --color-ink: #14202b;
+  --color-line: #c9c5ba;
+  --color-accent: #0b5cad;
+  --color-signal: #e8622c;
+  --color-stop: #c8102e;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  overflow: hidden;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
