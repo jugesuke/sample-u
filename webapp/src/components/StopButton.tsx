@@ -8,8 +8,9 @@ export function StopButton() {
     <button
       aria-pressed={stopLatched}
       onClick={toggleStop}
-      className={`min-h-14 shrink-0 rounded-lg px-6 text-lg font-black ${
-        stopLatched ? 'border-4 border-stop bg-card text-stop' : 'bg-stop text-white'
+      // 状態が変わってもサイズが変わらないよう、幅と枠線の太さを固定する
+      className={`min-h-14 w-40 shrink-0 whitespace-nowrap rounded-lg border-4 border-stop text-lg font-black ${
+        stopLatched ? 'bg-card text-stop' : 'bg-stop text-white'
       }`}
     >
       {stopLatched ? '停止中(解除)' : 'STOP'}

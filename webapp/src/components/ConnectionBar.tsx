@@ -8,8 +8,10 @@ const STATUS_LABEL = {
   disconnected: '切断されました',
 } as const;
 
-const primaryButton = 'min-h-11 rounded-lg bg-accent px-4 font-bold text-white disabled:opacity-50';
-const secondaryButton = 'min-h-11 rounded-lg border border-ink px-3 font-bold';
+// 状態が変わってもサイズが変わらないよう、幅と枠線の太さを揃える
+const buttonBase = 'min-h-11 w-28 whitespace-nowrap rounded-lg border font-bold';
+const primaryButton = `${buttonBase} border-accent bg-accent text-white disabled:opacity-50`;
+const secondaryButton = `${buttonBase} border-ink`;
 
 export function ConnectionBar() {
   const status = useBoatStore((state) => state.status);

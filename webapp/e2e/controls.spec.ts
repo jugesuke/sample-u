@@ -272,3 +272,29 @@ test('日本語フォントが読み込まれ、表示に使われる', async ({
   expect(font.family).toContain('Noto Sans JP');
   expect(font.loaded).toBe(true);
 });
+
+test('状態が変わってもボタンのサイズは変わらず、文字もはみ出さない', async ({ page }) => {
+  await installBluetoothMock(page);
+  await page.goto('/');
+  await page.evaluate(() => document.fonts.ready);
+
+  const size = async (button: Locator) => {
+    await expect(button).toBeVisible();
+    const box = (await button.boundingBox())!;
+    const fits = await button.evaluate((el) => el.scrollWidth <= el.clientWidth);
+    expect(fits).toBe(true);
+    return { width: box.width, height: box.height };
+  };
+
+  const stop = await size(page.getByRole('button', { name: 'STOP' }));
+  await page.getByRole('button', { name: 'STOP' }).click();
+  expect(await size(page.getByRole('button', { name: '停止中(解除)' }))).toEqual(stop);
+  await page.getByRole('button', { name: '停止中(解除)' }).click();
+
+  const connect = await size(page.getByRole('button', { name: '船に接続' }));
+  await page.getByRole('button', { name: '船に接続' }).click();
+  expect(await size(page.getByRole('button', { name: '切断' }))).toEqual(connect);
+  await page.evaluate(() => window.ble.dropConnection());
+  expect(await size(page.getByRole('button', { name: '再接続' }))).toEqual(connect);
+  expect(await size(page.getByRole('button', { name: '船を選び直す' }))).toEqual(connect);
+});
