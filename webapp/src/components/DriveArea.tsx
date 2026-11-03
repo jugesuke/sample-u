@@ -8,17 +8,23 @@ const portraitCard = 'portrait:rounded-xl portrait:bg-card portrait:p-2';
 const landscapeCard = 'landscape:rounded-xl landscape:bg-card landscape:p-2';
 const leftPane = `${landscapeCard} landscape:col-start-1 landscape:row-span-2 landscape:row-start-1`;
 const rightPane = `${landscapeCard} landscape:col-start-3 landscape:row-span-2 landscape:row-start-1`;
+const joystickRightPane = `${landscapeCard} landscape:col-start-2 landscape:row-span-2 landscape:row-start-1`;
 
 export function DriveArea() {
   const mode = useBoatStore((state) => state.mode);
+  const joystickSide = useBoatStore((state) => state.joystickSide);
   const axes = useBoatStore((state) => state.axes);
   const setAxes = useBoatStore((state) => state.setAxes);
   const handleJoystick = useCallback((x: number, y: number) => setAxes({ a: x, b: y }), [setAxes]);
 
   if (mode === 'joystick') {
     return (
-      <section aria-label="操縦" className={`min-h-0 flex-1 ${portraitCard} ${leftPane}`}>
-        <Joystick onChange={handleJoystick} />
+      <section
+        aria-label="操縦"
+        className={`min-h-0 flex-1 ${portraitCard} ${joystickSide === 'right' ? joystickRightPane : leftPane}`}
+      >
+        {/* 位置が変わるので作り直す。nipplejsは生成時の座標を基準にする */}
+        <Joystick key={joystickSide} onChange={handleJoystick} />
       </section>
     );
   }

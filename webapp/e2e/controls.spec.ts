@@ -263,7 +263,7 @@ for (const { name, viewport } of [
     await page.setViewportSize(viewport);
     await openConnected(page);
     for (const [index, mode] of ['スティック', '左右独立', 'スロットル+舵'].entries()) {
-      await page.getByRole('button', { name: mode }).click();
+      await page.getByRole('button', { name: mode, exact: true }).click();
       const overflow = await page.evaluate(() => ({
         x: document.documentElement.scrollWidth - window.innerWidth,
         y: document.documentElement.scrollHeight - window.innerHeight,
@@ -502,8 +502,41 @@ test('横画面のジョイスティックは画面の高さを使う', async ({
   await page.setViewportSize({ width: 839, height: 412 });
   await installBluetoothMock(page);
   await page.goto('/');
-  await page.getByRole('button', { name: 'スティック' }).click();
+  await page.getByRole('button', { name: 'スティック', exact: true }).click();
   const box = (await page.getByTestId('joystick').boundingBox())!;
   expect(box.height).toBeGreaterThanOrEqual(370);
   expect(box.width).toBeGreaterThanOrEqual(500);
+});
+
+test('横画面のスティックを左右に切り替えられ、移動後も操作でき、選択が残る', async ({ page, context }) => {
+  await page.setViewportSize({ width: 839, height: 412 });
+  await openConnected(page);
+  const joystick = page.getByTestId('joystick');
+  const stop = page.getByRole('button', { name: 'STOP' });
+
+  expect((await joystick.boundingBox())!.x).toBeLessThan((await stop.boundingBox())!.x);
+
+  await page.getByRole('button', { name: 'スティックを右へ' }).click();
+  await expectTextFits(page.getByRole('button', { name: 'スティックを左へ' }));
+  expect((await joystick.boundingBox())!.x).toBeGreaterThan((await stop.boundingBox())!.x);
+
+  const cdp = await context.newCDPSession(page);
+  await pushJoystickForward(page, cdp);
+  await waitForOutput(page, 100, 100);
+  await touch(cdp, 'touchEnd', []);
+  await waitForOutput(page, 0, 0);
+
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'スティックを左へ' })).toBeVisible();
+});
+
+test('スティックの左右切替は縦画面と他のモードでは出ない', async ({ page }) => {
+  await installBluetoothMock(page);
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: /^スティックを/ })).toBeHidden();
+
+  await page.setViewportSize({ width: 839, height: 412 });
+  await expect(page.getByRole('button', { name: /^スティックを/ })).toBeVisible();
+  await page.getByRole('button', { name: '左右独立' }).click();
+  await expect(page.getByRole('button', { name: /^スティックを/ })).toBeHidden();
 });

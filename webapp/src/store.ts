@@ -16,12 +16,14 @@ const NEUTRAL: Axes = { a: 0, b: 0 };
 interface BoatState {
   mode: DriveMode;
   maxOutput: number;
+  joystickSide: 'left' | 'right';
   axes: Axes;
   stopLatched: boolean;
   status: LinkStatus;
   error?: string;
   setMode: (mode: DriveMode) => void;
   setMaxOutput: (maxOutput: number) => void;
+  setJoystickSide: (joystickSide: 'left' | 'right') => void;
   setAxes: (axes: Partial<Axes>) => void;
   resetAxes: () => void;
   toggleStop: () => void;
@@ -32,18 +34,20 @@ export const useBoatStore = create<BoatState>()(
     (set) => ({
       mode: 'joystick',
       maxOutput: 100,
+      joystickSide: 'left',
       axes: NEUTRAL,
       stopLatched: false,
       status: 'idle',
       setMode: (mode) => set({ mode, axes: NEUTRAL }),
       setMaxOutput: (maxOutput) => set({ maxOutput }),
+      setJoystickSide: (joystickSide) => set({ joystickSide }),
       setAxes: (axes) => set((state) => ({ axes: { ...state.axes, ...axes } })),
       resetAxes: () => set({ axes: NEUTRAL }),
       toggleStop: () => set((state) => ({ stopLatched: !state.stopLatched, axes: NEUTRAL })),
     }),
     {
       name: 'boat-controller-settings',
-      partialize: ({ mode, maxOutput }) => ({ mode, maxOutput }),
+      partialize: ({ mode, maxOutput, joystickSide }) => ({ mode, maxOutput, joystickSide }),
     },
   ),
 );
