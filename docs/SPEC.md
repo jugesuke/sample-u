@@ -135,7 +135,7 @@ AndroidのChromeのみ。Web Bluetooth非対応のブラウザ(iPhoneのSafari�
 
 接続中は画面の消灯を防ぐ(Wake Lock API)。PWAとして動作し、一度開けばオフラインでも起動できる。
 
-端末の既定フォントでは漢字が中国語の字形になることがあるため、WebフォントのNoto Sans JP(OFL-1.1)を同梱し、オフライン用にキャッシュする(約5.5MB)。
+端末の既定フォントでは漢字が中国語の字形になることがあるため、Google FontsのNoto Sans JPを使う。
 
 ## 7. 対象外
 

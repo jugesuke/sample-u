@@ -11,10 +11,6 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      workbox: {
-        // 圏外の水辺でも日本語を正しく表示できるよう、フォントも事前にキャッシュする
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-      },
       manifest: {
         name: '船コントローラー',
         short_name: '船',

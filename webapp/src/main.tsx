@@ -1,4 +1,3 @@
-import '@fontsource-variable/noto-sans-jp';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
