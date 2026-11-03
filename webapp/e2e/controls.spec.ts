@@ -260,29 +260,44 @@ for (const { name, viewport } of [
   });
 }
 
+// 本物のNoto Sans JPを読み込んでから文字幅を測る。読み込めなければ失敗する
+async function expectTextFits(button: Locator) {
+  await expect(button).toBeVisible();
+  const result = await button.evaluate(async (element) => {
+    const style = getComputedStyle(element);
+    const faces = await document.fonts.load(
+      `${style.fontWeight} ${style.fontSize} "Noto Sans JP"`,
+      element.textContent ?? '',
+    );
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    return {
+      text: element.textContent,
+      loaded: faces.length > 0 && faces.every((face) => face.status === 'loaded'),
+      textWidth: range.getBoundingClientRect().width,
+      available:
+        element.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+    };
+  });
+  expect(result.loaded, `${result.text} のフォント`).toBe(true);
+  expect(result.textWidth, `${result.text} の文字幅`).toBeLessThanOrEqual(result.available);
+}
+
 test('日本語フォントが読み込まれ、表示に使われる', async ({ page }) => {
   await openConnected(page);
-  await page.evaluate(() => document.fonts.ready);
-  const font = await page.evaluate(() => ({
-    family: getComputedStyle(document.body).fontFamily,
-    loaded: [...document.fonts].some(
-      (face) => face.family.includes('Noto Sans JP') && face.status === 'loaded',
-    ),
-  }));
-  expect(font.family).toContain('Noto Sans JP');
-  expect(font.loaded).toBe(true);
+  expect(await page.evaluate(() => getComputedStyle(document.body).fontFamily)).toContain(
+    'Noto Sans JP',
+  );
+  await expectTextFits(page.getByRole('button', { name: 'STOP' }));
 });
 
-test('状態が変わってもボタンのサイズは変わらず、文字もはみ出さない', async ({ page }) => {
+test('状態が変わってもボタンのサイズは変わらない', async ({ page }) => {
   await installBluetoothMock(page);
   await page.goto('/');
-  await page.evaluate(() => document.fonts.ready);
 
   const size = async (button: Locator) => {
-    await expect(button).toBeVisible();
+    await expectTextFits(button);
     const box = (await button.boundingBox())!;
-    const fits = await button.evaluate((el) => el.scrollWidth <= el.clientWidth);
-    expect(fits).toBe(true);
     return { width: box.width, height: box.height };
   };
 
@@ -298,3 +313,38 @@ test('状態が変わってもボタンのサイズは変わらず、文字も�
   expect(await size(page.getByRole('button', { name: '再接続' }))).toEqual(connect);
   expect(await size(page.getByRole('button', { name: '船を選び直す' }))).toEqual(connect);
 });
+
+for (const viewport of [
+  { width: 360, height: 640 },
+  { width: 640, height: 360 },
+  { width: 412, height: 839 },
+  { width: 839, height: 412 },
+]) {
+  test(`全ボタンの文字が収まり、画面からはみ出さない (${viewport.width}x${viewport.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await installBluetoothMock(page);
+    await page.goto('/');
+
+    const checkAll = async () => {
+      for (const button of await page.getByRole('button').all()) {
+        await expectTextFits(button);
+      }
+      const overflow = await page.evaluate(() => ({
+        x: document.documentElement.scrollWidth - window.innerWidth,
+        y: document.querySelector('main')!.scrollHeight - window.innerHeight,
+      }));
+      expect(overflow).toEqual({ x: 0, y: 0 });
+    };
+
+    await checkAll(); // 未接続
+    await page.getByRole('button', { name: 'STOP' }).click();
+    await checkAll(); // 停止中
+    await page.getByRole('button', { name: '停止中(解除)' }).click();
+    await page.getByRole('button', { name: '船に接続' }).click();
+    await checkAll(); // 接続済み
+    await page.evaluate(() => window.ble.dropConnection());
+    await checkAll(); // 切断後
+  });
+}
