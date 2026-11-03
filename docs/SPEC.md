@@ -10,7 +10,7 @@ Android Chrome(Webアプリ) --BLE--> XIAO ESP32C3(ファームウェア) --PWM-
 
 | 要素 | 内容 | 場所 |
 |---|---|---|
-| ファームウェア | Arduino(esp32 core 3.x)、ボード `XIAO_ESP32C3` | `firmware/boat_controller/` |
+| ファームウェア | Arduino(esp32 core 3.3.12、BLEスタックはNimBLE)、ボード `XIAO_ESP32C3` | `firmware/boat_controller/` |
 | Webアプリ | React + TypeScript のPWA。GitHub Pagesで配信 | `webapp/` |
 
 Web Bluetoothはhttpsが必須のため、Webアプリは船から配信せず、GitHub Pagesに置く。
@@ -66,7 +66,9 @@ Web Bluetoothはhttpsが必須のため、Webアプリは船から配信せず�
 | デバイス名 | `SampleU-Boat` |
 | サービスUUID | `7c1f0a10-5b3e-4d2a-9f61-2a8e4c7d1b00` |
 | 指令キャラクタリスティックUUID | `7c1f0a11-5b3e-4d2a-9f61-2a8e4c7d1b00` |
-| プロパティ | Write Without Response |
+| 指令のプロパティ | Write Without Response |
+| ログキャラクタリスティックUUID | `7c1f0a12-5b3e-4d2a-9f61-2a8e4c7d1b00` |
+| ログのプロパティ | Notify |
 | 同時接続数 | 1台。切断後にアドバタイズを再開する |
 
 ### 指令フレーム(2バイト)
@@ -79,6 +81,27 @@ Web Bluetoothはhttpsが必須のため、Webアプリは船から配信せず�
 - 範囲外の値は ±100 に丸める。
 - 2バイト以外のフレームは破棄する(タイムアウトの計測も更新しない)。
 - 認証やペアリングはない。Bluetoothの届く範囲にいる第三者も、船が未接続なら接続できる。
+
+### ログ通知
+
+船の動作ログを、改行で終わるテキストとして通知する。1回の通知は最大20バイトで、MTUに依存しない。受信側は改行まで連結して1行にする。
+
+未送信の行は最大64行まで保持し、溢れると古い行から捨てる。購読されると保持していた行から順に送る。保持はRAM上なので、リセットや電源断で失われる。
+
+各行は `<起動後のミリ秒> <本文>` の形式で、1行の長さは最大79文字。
+
+| 本文 | 意味 |
+|---|---|
+| `boot reason=<理由> build=<日時>` | 起動。理由は `POWERON`、`BROWNOUT`(電圧低下)、`PANIC` など |
+| `connected` / `disconnected` | 接続と切断 |
+| `commands active` | 指令の受信が始まった |
+| `failsafe stop: no command for <n>ms` | 受信が途切れて停止した |
+| `failsafe stop: disconnected` | 切断で停止した |
+| `st L<目標>><現在> R<目標>><現在> rx=<n> gap=<n>ms bad=<n> drop=<n> heap=<n>k` | 接続中に1秒ごとに出す状態 |
+
+状態行の項目は次のとおり。`rx` は前回の状態行以降に受信したフレーム数(正常なら約20)、`gap` は同期間の最大受信間隔、`bad` は不正フレーム数の累計、`drop` は捨てたログ行数の累計、`heap` は空きメモリ。
+
+切断理由は、使用しているBLEライブラリのコールバックで取得できないため記録しない。
 
 ### 送信周期
 
@@ -133,6 +156,20 @@ AndroidのChromeのみ。Web Bluetooth非対応のブラウザ(iPhoneのSafari�
 | 最大出力 | 10〜100%(5%刻み)、初期値100%。全指令に掛ける。端末に保存する |
 | STOP | 押すと解除するまで0を送り続ける。接続が切れると解除される |
 
+### ログ画面
+
+「ログ」ボタンで開く。船のログとアプリのログ(接続、切断、送信失敗、画面の表示切替)を、受信時刻とともに時系列で表示する。
+
+| 操作 | 内容 |
+|---|---|
+| 保存 | テキストファイル `boat-log-<日時>.txt` をダウンロードする |
+| クリア | 表示中のログを消す |
+| 閉じる | 操縦画面に戻る |
+
+アプリ側は最新5000行をメモリに保持し、ページを再読み込みすると消える。ログ画面を開くと操作入力は中立に戻るが、接続とハートビートは維持する。
+
+### その他
+
 接続中は画面の消灯を防ぐ(Wake Lock API)。PWAとして動作し、一度開けばオフラインでも起動できる。
 
 端末の既定フォントでは漢字が中国語の字形になることがあるため、Google FontsのNoto Sans JPを使う。
@@ -140,7 +177,6 @@ AndroidのChromeのみ。Web Bluetooth非対応のブラウザ(iPhoneのSafari�
 ## 7. 対象外
 
 - 電池電圧の表示(電圧検出回路がない)
-- 船から端末への状態通知
 - 認証、ペアリング
 - OTAアップデート
 - iPhone対応
@@ -151,7 +187,7 @@ AndroidのChromeのみ。Web Bluetooth非対応のブラウザ(iPhoneのSafari�
 
 | 値 | ファームウェア | Webアプリ |
 |---|---|---|
-| UUID | `SERVICE_UUID`、`COMMAND_CHAR_UUID` | `webapp/src/lib/protocol.ts` |
+| UUID | `SERVICE_UUID`、`COMMAND_CHAR_UUID`、`LOG_CHAR_UUID` | `webapp/src/lib/protocol.ts` |
 | 指令範囲 | `COMMAND_MAX` | `COMMAND_MAX` |
 
 送信周期(`SEND_INTERVAL_MS`)は、タイムアウト(`COMMAND_TIMEOUT_MS`)より十分短くする。
