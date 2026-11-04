@@ -14,7 +14,7 @@
 
 // 前進指令でモーターが逆に回るときは true にする
 constexpr bool MOTOR_L_INVERT = false;
-constexpr bool MOTOR_R_INVERT = false;
+constexpr bool MOTOR_R_INVERT = true;
 
 constexpr uint8_t PIN_ML_IN_A = D10;
 constexpr uint8_t PIN_ML_IN_B = D9;
