@@ -15,6 +15,16 @@ export interface MotorCommand {
 
 export const STOPPED: MotorCommand = { left: 0, right: 0 };
 
+export const MAX_BALANCE = 30;
+
+/** 直進の調整。正なら右、負なら左のモーターを、その割合(%)だけ弱める */
+export function applyBalance({ left, right }: MotorCommand, balance: number): MotorCommand {
+  return {
+    left: (left * (100 + Math.min(balance, 0))) / 100,
+    right: (right * (100 - Math.max(balance, 0))) / 100,
+  };
+}
+
 /** 旋回と前後進を左右モーターの出力へ変換する。どちらかが上限を超えるときは比率を保って縮める */
 export function mix(turn: number, forward: number): MotorCommand {
   const left = forward + turn;

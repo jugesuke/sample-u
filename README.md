@@ -53,7 +53,7 @@ Web Bluetoothはhttpsが必須なので、GitHub Pagesで配信します。
 指令の流れを追うときは、表示レベルを `DEBUG` にして、アプリの `tx` 行と船の `rx` 行を `seq`(通し番号)で見比べます。
 
 ```
-tx seq=1234 L=72 R=24 mode=joystick a=30 b=60 max=80 stop=0 n=4 skip=0 fail=0
+tx seq=1234 L=72 R=24 mode=joystick a=30 b=60 max=80 bal=0 stop=0 n=4 skip=0 fail=0
 rx seq=1234 L=72 R=24 out=70,30 duty=1023/307,1023/716 n=4 lost=0 gap=58ms bad=0 drop=0
 ```
 

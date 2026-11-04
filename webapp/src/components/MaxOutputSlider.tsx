@@ -9,7 +9,7 @@ export function MaxOutputSlider() {
     <div className="flex min-w-0 flex-1 items-center gap-2">
       <span className="shrink-0 text-sm font-bold">最大 {maxOutput}%</span>
       <Slider.Root
-        className="relative flex h-11 min-w-0 flex-1 touch-none items-center"
+        className="relative flex h-11 min-w-0 flex-1 touch-none items-center landscape:h-9"
         min={10}
         max={100}
         step={5}

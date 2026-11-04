@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { BalanceSlider } from './components/BalanceSlider';
 import { ConnectionBar } from './components/ConnectionBar';
 import { DriveArea } from './components/DriveArea';
 import { JoystickSideToggle } from './components/JoystickSideToggle';
@@ -40,10 +41,11 @@ export function App() {
     <main
       className={`flex h-dvh flex-col gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] landscape:grid landscape:grid-rows-[auto_1fr] landscape:p-2 ${columns}`}
     >
-      <header className={`flex flex-col gap-2 landscape:row-start-1 ${panelColumn}`}>
+      <header className={`flex flex-col gap-2 landscape:row-start-1 landscape:gap-1.5 ${panelColumn}`}>
         <ConnectionBar onOpenLog={openLog} />
         <ModeTabs />
         <OutputMeters />
+        <BalanceSlider />
         <JoystickSideToggle />
       </header>
       <DriveArea />

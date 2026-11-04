@@ -9,7 +9,7 @@ export function JoystickSideToggle() {
 
   return (
     <button
-      className="min-h-11 w-full whitespace-nowrap rounded-lg border border-ink font-bold portrait:hidden"
+      className="min-h-11 w-full whitespace-nowrap landscape:min-h-9 rounded-lg border border-ink font-bold portrait:hidden"
       onClick={() => setSide(side === 'left' ? 'right' : 'left')}
     >
       {side === 'left' ? 'スティックを右へ' : 'スティックを左へ'}

@@ -4,6 +4,7 @@ import { BoatLink, type LinkStatus } from './lib/boatLink';
 import {
   axesToCommand,
   limitCommand,
+  applyBalance,
   STOPPED,
   type Axes,
   type DriveMode,
@@ -17,6 +18,7 @@ interface BoatState {
   mode: DriveMode;
   maxOutput: number;
   joystickSide: 'left' | 'right';
+  balance: number;
   axes: Axes;
   stopLatched: boolean;
   status: LinkStatus;
@@ -24,6 +26,7 @@ interface BoatState {
   setMode: (mode: DriveMode) => void;
   setMaxOutput: (maxOutput: number) => void;
   setJoystickSide: (joystickSide: 'left' | 'right') => void;
+  setBalance: (balance: number) => void;
   setAxes: (axes: Partial<Axes>) => void;
   resetAxes: () => void;
   toggleStop: () => void;
@@ -35,19 +38,21 @@ export const useBoatStore = create<BoatState>()(
       mode: 'joystick',
       maxOutput: 100,
       joystickSide: 'left',
+      balance: 0,
       axes: NEUTRAL,
       stopLatched: false,
       status: 'idle',
       setMode: (mode) => set({ mode, axes: NEUTRAL }),
       setMaxOutput: (maxOutput) => set({ maxOutput }),
       setJoystickSide: (joystickSide) => set({ joystickSide }),
+      setBalance: (balance) => set({ balance }),
       setAxes: (axes) => set((state) => ({ axes: { ...state.axes, ...axes } })),
       resetAxes: () => set({ axes: NEUTRAL }),
       toggleStop: () => set((state) => ({ stopLatched: !state.stopLatched, axes: NEUTRAL })),
     }),
     {
       name: 'boat-controller-settings',
-      partialize: ({ mode, maxOutput, joystickSide }) => ({ mode, maxOutput, joystickSide }),
+      partialize: ({ mode, maxOutput, joystickSide, balance }) => ({ mode, maxOutput, joystickSide, balance }),
     },
   ),
 );
@@ -55,16 +60,17 @@ export const useBoatStore = create<BoatState>()(
 /** 実際にモーターへ送る指令 */
 export function selectOutput(state: BoatState): MotorCommand {
   if (state.stopLatched) return STOPPED;
-  return limitCommand(axesToCommand(state.mode, state.axes), state.maxOutput);
+  const balanced = applyBalance(axesToCommand(state.mode, state.axes), state.balance);
+  return limitCommand(balanced, state.maxOutput);
 }
 
 export const boatLink = new BoatLink(
   () => {
     const state = useBoatStore.getState();
-    const { mode, axes, maxOutput, stopLatched } = state;
+    const { mode, axes, maxOutput, balance, stopLatched } = state;
     return {
       command: selectOutput(state),
-      input: `mode=${mode} a=${Math.round(axes.a)} b=${Math.round(axes.b)} max=${maxOutput} stop=${Number(stopLatched)}`,
+      input: `mode=${mode} a=${Math.round(axes.a)} b=${Math.round(axes.b)} max=${maxOutput} bal=${balance} stop=${Number(stopLatched)}`,
     };
   },
   (status, error) => {

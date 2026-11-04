@@ -137,8 +137,8 @@ test('左右独立: 両手で同時に操作でき、離すと0に戻る', async
   await openConnected(page);
   await page.getByRole('button', { name: '左右独立' }).click();
   const cdp = await context.newCDPSession(page);
-  const left = await center(page.getByRole('slider', { name: '左' }));
-  const right = await center(page.getByRole('slider', { name: '右' }));
+  const left = await center(page.getByRole('slider', { name: '左', exact: true }));
+  const right = await center(page.getByRole('slider', { name: '右', exact: true }));
 
   const leftTop = { x: left.x, y: left.y - 2000, id: 1 };
   const rightBottom = { x: right.x, y: right.y + 2000, id: 2 };
@@ -453,7 +453,7 @@ test('送信の通し番号が連続し、操作入力とともにDEBUGログに
   const log = page.getByRole('log', { name: '動作ログ' });
   await expect(log).not.toContainText(' tx seq=');
   await page.getByLabel('表示レベル').selectOption('DEBUG');
-  await expect(log).toContainText(/DEBUG app {2}tx seq=\d+ L=100 R=100 mode=joystick a=0 b=100 max=100 stop=0 n=\d+ skip=0 fail=0/);
+  await expect(log).toContainText(/DEBUG app {2}tx seq=\d+ L=100 R=100 mode=joystick a=0 b=100 max=100 bal=0 stop=0 n=\d+ skip=0 fail=0/);
   await expect(log).toContainText(/tx seq=\d+ L=0 R=0 mode=joystick a=0 b=0/);
 });
 
@@ -539,4 +539,22 @@ test('スティックの左右切替は縦画面と他のモードでは出な�
   await expect(page.getByRole('button', { name: /^スティックを/ })).toBeVisible();
   await page.getByRole('button', { name: '左右独立' }).click();
   await expect(page.getByRole('button', { name: /^スティックを/ })).toBeHidden();
+});
+
+test('左右バランスで片側だけ弱まり、設定が残り、0で戻せる', async ({ page, context }) => {
+  await openConnected(page);
+  await page.getByRole('slider', { name: '左右バランス' }).focus();
+  for (let i = 0; i < 10; i += 1) await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('status', { name: '左右の出力比' })).toHaveText('L100 R90');
+
+  const cdp = await context.newCDPSession(page);
+  await pushJoystickForward(page, cdp);
+  await waitForOutput(page, 100, 90);
+  await touch(cdp, 'touchEnd', []);
+  await waitForOutput(page, 0, 0);
+
+  await page.reload();
+  await expect(page.getByRole('status', { name: '左右の出力比' })).toHaveText('L100 R90');
+  await page.getByRole('button', { name: '左右バランスを中央に戻す' }).click();
+  await expect(page.getByRole('status', { name: '左右の出力比' })).toHaveText('L100 R100');
 });

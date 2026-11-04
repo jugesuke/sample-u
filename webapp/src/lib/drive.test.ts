@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { axesToCommand, encodeFrame, limitCommand, mix } from './drive';
+import { applyBalance, axesToCommand, encodeFrame, limitCommand, mix } from './drive';
 
 describe('mix', () => {
   it('前進は左右同じ出力になる', () => {
@@ -31,6 +31,21 @@ describe('axesToCommand', () => {
   it('joystickとthrottleRudderはミキシングする', () => {
     expect(axesToCommand('joystick', { a: 10, b: 20 })).toEqual({ left: 30, right: 10 });
     expect(axesToCommand('throttleRudder', { a: 10, b: 20 })).toEqual({ left: 30, right: 10 });
+  });
+});
+
+describe('applyBalance', () => {
+  it('0なら変えない', () => {
+    expect(applyBalance({ left: 80, right: -60 }, 0)).toEqual({ left: 80, right: -60 });
+  });
+
+  it('正なら右、負なら左だけを弱める', () => {
+    expect(applyBalance({ left: 100, right: 100 }, 10)).toEqual({ left: 100, right: 90 });
+    expect(applyBalance({ left: 100, right: 100 }, -20)).toEqual({ left: 80, right: 100 });
+  });
+
+  it('後進でも同じ割合で弱める', () => {
+    expect(applyBalance({ left: -100, right: -100 }, 10)).toEqual({ left: -100, right: -90 });
   });
 });
 
