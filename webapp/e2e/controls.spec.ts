@@ -558,3 +558,25 @@ test('左右バランスで片側だけ弱まり、設定が残り、0で戻せ�
   await page.getByRole('button', { name: '左右バランスを中央に戻す' }).click();
   await expect(page.getByRole('status', { name: '左右の出力比' })).toHaveText('L100 R100');
 });
+
+test('左右バランスは片側が止まるまで設定でき、ボタンで1%ずつ動かせる', async ({ page, context }) => {
+  await openConnected(page);
+  const ratio = page.getByRole('status', { name: '左右の出力比' });
+
+  await page.getByRole('button', { name: 'バランスを右へ' }).click();
+  await expect(ratio).toHaveText('L100 R99');
+  await page.getByRole('button', { name: 'バランスを左へ' }).click();
+  await page.getByRole('button', { name: 'バランスを左へ' }).click();
+  await expect(ratio).toHaveText('L99 R100');
+
+  await page.getByRole('slider', { name: '左右バランス' }).focus();
+  await page.keyboard.press('End');
+  await expect(ratio).toHaveText('L100 R0');
+  await page.getByRole('button', { name: 'バランスを右へ' }).click(); // 上限を超えない
+  await expect(ratio).toHaveText('L100 R0');
+
+  const cdp = await context.newCDPSession(page);
+  await pushJoystickForward(page, cdp);
+  await waitForOutput(page, 100, 0);
+  await touch(cdp, 'touchEnd', []);
+});

@@ -44,6 +44,11 @@ describe('applyBalance', () => {
     expect(applyBalance({ left: 100, right: 100 }, -20)).toEqual({ left: 80, right: 100 });
   });
 
+  it('最大まで動かすと片側が止まる', () => {
+    expect(applyBalance({ left: 100, right: 100 }, 100)).toEqual({ left: 100, right: 0 });
+    expect(applyBalance({ left: 100, right: 100 }, -100)).toEqual({ left: 0, right: 100 });
+  });
+
   it('後進でも同じ割合で弱める', () => {
     expect(applyBalance({ left: -100, right: -100 }, 10)).toEqual({ left: -100, right: -90 });
   });
