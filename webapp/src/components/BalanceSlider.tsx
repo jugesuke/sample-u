@@ -13,7 +13,7 @@ export function BalanceSlider() {
     setBalance(Math.max(-MAX_BALANCE, Math.min(MAX_BALANCE, balance + delta)));
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 landscape:flex-wrap">
       <output aria-label="左右の出力比" className="w-10 shrink-0 font-mono text-xs font-bold">
         <span className="block">L{left}</span> <span className="block">R{right}</span>
       </output>
@@ -21,7 +21,7 @@ export function BalanceSlider() {
         ◀
       </button>
       <Slider.Root
-        className="relative flex h-11 min-w-0 flex-1 touch-none items-center landscape:h-9"
+        className="relative flex h-11 min-w-0 flex-1 touch-none items-center landscape:order-last landscape:h-9 landscape:basis-full"
         min={-MAX_BALANCE}
         max={MAX_BALANCE}
         step={1}

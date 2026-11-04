@@ -19,6 +19,7 @@ interface BoatState {
   maxOutput: number;
   joystickSide: 'left' | 'right';
   balance: number;
+  showBalance: boolean;
   axes: Axes;
   stopLatched: boolean;
   status: LinkStatus;
@@ -27,6 +28,7 @@ interface BoatState {
   setMaxOutput: (maxOutput: number) => void;
   setJoystickSide: (joystickSide: 'left' | 'right') => void;
   setBalance: (balance: number) => void;
+  setShowBalance: (showBalance: boolean) => void;
   setAxes: (axes: Partial<Axes>) => void;
   resetAxes: () => void;
   toggleStop: () => void;
@@ -39,6 +41,7 @@ export const useBoatStore = create<BoatState>()(
       maxOutput: 100,
       joystickSide: 'left',
       balance: 0,
+      showBalance: false,
       axes: NEUTRAL,
       stopLatched: false,
       status: 'idle',
@@ -46,13 +49,20 @@ export const useBoatStore = create<BoatState>()(
       setMaxOutput: (maxOutput) => set({ maxOutput }),
       setJoystickSide: (joystickSide) => set({ joystickSide }),
       setBalance: (balance) => set({ balance }),
+      setShowBalance: (showBalance) => set({ showBalance }),
       setAxes: (axes) => set((state) => ({ axes: { ...state.axes, ...axes } })),
       resetAxes: () => set({ axes: NEUTRAL }),
       toggleStop: () => set((state) => ({ stopLatched: !state.stopLatched, axes: NEUTRAL })),
     }),
     {
       name: 'boat-controller-settings',
-      partialize: ({ mode, maxOutput, joystickSide, balance }) => ({ mode, maxOutput, joystickSide, balance }),
+      partialize: ({ mode, maxOutput, joystickSide, balance, showBalance }) => ({
+        mode,
+        maxOutput,
+        joystickSide,
+        balance,
+        showBalance,
+      }),
     },
   ),
 );

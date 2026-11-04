@@ -1,18 +1,29 @@
 import { useBoatStore } from '../store';
 
-/** 横画面のスティックを左右どちらに置くかを切り替える */
+const SIDES = [
+  { side: 'left', label: '左' },
+  { side: 'right', label: '右' },
+] as const;
+
+/** 横画面のスティックを左右どちらに置くかを選ぶ */
 export function JoystickSideToggle() {
-  const mode = useBoatStore((state) => state.mode);
-  const side = useBoatStore((state) => state.joystickSide);
+  const current = useBoatStore((state) => state.joystickSide);
   const setSide = useBoatStore((state) => state.setJoystickSide);
-  if (mode !== 'joystick') return null;
 
   return (
-    <button
-      className="min-h-11 w-full whitespace-nowrap landscape:min-h-9 rounded-lg border border-ink font-bold portrait:hidden"
-      onClick={() => setSide(side === 'left' ? 'right' : 'left')}
-    >
-      {side === 'left' ? 'スティックを右へ' : 'スティックを左へ'}
-    </button>
+    <div role="group" aria-label="横画面のスティック位置" className="flex rounded-lg border border-ink">
+      {SIDES.map(({ side, label }) => (
+        <button
+          key={side}
+          aria-pressed={side === current}
+          onClick={() => setSide(side)}
+          className={`min-h-11 flex-1 font-bold first:rounded-l-lg last:rounded-r-lg ${
+            side === current ? 'bg-ink text-paper' : ''
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }

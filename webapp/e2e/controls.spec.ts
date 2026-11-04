@@ -68,6 +68,25 @@ async function openConnected(page: Page) {
   await expect(linkStatus(page)).toHaveText('接続済み');
 }
 
+// 設定画面を開いて操作し、操縦画面へ戻る
+async function inSettings(page: Page, change: () => Promise<void>) {
+  await page.getByRole('button', { name: '設定' }).click();
+  await change();
+  await page.getByRole('button', { name: '閉じる' }).click();
+}
+
+const selectMode = (page: Page, name: string) =>
+  inSettings(page, () => page.getByRole('button', { name, exact: true }).click());
+
+const setMinimumMaxOutput = (page: Page) =>
+  inSettings(page, async () => {
+    await page.getByRole('slider', { name: '最大出力' }).focus();
+    await page.keyboard.press('Home');
+  });
+
+const showBalanceOnDrive = (page: Page) =>
+  inSettings(page, () => page.getByRole('checkbox', { name: '操縦画面にも表示する' }).check());
+
 const latestFrame = (page: Page) => page.evaluate(() => window.ble.frames.at(-1));
 const frameCount = (page: Page) => page.evaluate(() => window.ble.frames.length);
 
@@ -135,7 +154,7 @@ test('ジョイスティック: 前に倒すと前進し、真横でその場旋
 
 test('左右独立: 両手で同時に操作でき、離すと0に戻る', async ({ page, context }) => {
   await openConnected(page);
-  await page.getByRole('button', { name: '左右独立' }).click();
+  await selectMode(page, '左右独立');
   const cdp = await context.newCDPSession(page);
   const left = await center(page.getByRole('slider', { name: '左', exact: true }));
   const right = await center(page.getByRole('slider', { name: '右', exact: true }));
@@ -158,7 +177,7 @@ test('左右独立: 両手で同時に操作でき、離すと0に戻る', async
 test('スロットル+舵: 横持ちで両手操作でき、ミキシングされる', async ({ page, context }) => {
   await page.setViewportSize({ width: 839, height: 412 });
   await openConnected(page);
-  await page.getByRole('button', { name: 'スロットル+舵' }).click();
+  await selectMode(page, 'スロットル+舵');
   const cdp = await context.newCDPSession(page);
   const throttle = await center(page.getByRole('slider', { name: 'スロットル' }));
   const rudder = await center(page.getByRole('slider', { name: '舵' }));
@@ -177,9 +196,8 @@ test('スロットル+舵: 横持ちで両手操作でき、ミキシングさ�
 
 test('最大出力で送信値が制限される', async ({ page, context }) => {
   await openConnected(page);
-  await page.getByRole('slider', { name: '最大出力' }).focus();
-  await page.keyboard.press('Home'); // 最小の10%にする
-  await expect(page.getByText('最大 10%')).toBeVisible();
+  await setMinimumMaxOutput(page);
+  await expect(page.getByRole('status', { name: '現在の設定' })).toContainText('最大 10%');
 
   const cdp = await context.newCDPSession(page);
   await pushJoystickForward(page, cdp);
@@ -244,10 +262,11 @@ test('画面が隠れると停止値を1回送って送信を止め、戻ると�
 test('選んだモードと最大出力は再読み込み後も残る', async ({ page }) => {
   await installBluetoothMock(page);
   await page.goto('/');
-  await page.getByRole('button', { name: '左右独立' }).click();
-  await page.getByRole('slider', { name: '最大出力' }).focus();
-  await page.keyboard.press('Home');
+  await selectMode(page, '左右独立');
+  await setMinimumMaxOutput(page);
   await page.reload();
+  await expect(page.getByRole('status', { name: '現在の設定' })).toContainText('最大 10%');
+  await page.getByRole('button', { name: '設定' }).click();
   await expect(page.getByRole('button', { name: '左右独立' })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -262,8 +281,9 @@ for (const { name, viewport } of [
   test(`全モードが画面に収まる (${name})`, async ({ page }, info) => {
     await page.setViewportSize(viewport);
     await openConnected(page);
+    await showBalanceOnDrive(page); // 操縦画面の項目が最も多い状態で確かめる
     for (const [index, mode] of ['スティック', '左右独立', 'スロットル+舵'].entries()) {
-      await page.getByRole('button', { name: mode, exact: true }).click();
+      await selectMode(page, mode);
       const overflow = await page.evaluate(() => ({
         x: document.documentElement.scrollWidth - window.innerWidth,
         y: document.documentElement.scrollHeight - window.innerHeight,
@@ -362,6 +382,14 @@ for (const viewport of [
     await checkAll(); // 接続済み
     await page.evaluate(() => window.ble.dropConnection());
     await checkAll(); // 切断後
+    await showBalanceOnDrive(page);
+    await checkAll(); // 操縦画面にバランスを表示
+
+    await page.getByRole('button', { name: '設定' }).click();
+    for (const button of await page.getByRole('button').all()) {
+      await expectTextFits(button);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
   });
 }
 
@@ -442,6 +470,7 @@ test('送信の通し番号が連続し、操作入力とともにDEBUGログに
   const cdp = await context.newCDPSession(page);
   await pushJoystickForward(page, cdp);
   await waitForOutput(page, 100, 100);
+  await page.waitForTimeout(300); // tx行は変化しても200ms間隔でしか出ない
   await touch(cdp, 'touchEnd', []);
   await waitForOutput(page, 0, 0);
 
@@ -491,7 +520,7 @@ for (const { mode, label, length, axis } of [
     await page.setViewportSize({ width: 839, height: 412 });
     await installBluetoothMock(page);
     await page.goto('/');
-    await page.getByRole('button', { name: mode }).click();
+    await selectMode(page, mode);
     const track = page.getByRole('slider', { name: label, exact: true }).locator('xpath=ancestor::*[@data-orientation][last()]');
     const box = (await track.boundingBox())!;
     expect(box[axis]).toBeGreaterThanOrEqual(length);
@@ -502,11 +531,13 @@ test('横画面のジョイスティックは画面の高さを使う', async ({
   await page.setViewportSize({ width: 839, height: 412 });
   await installBluetoothMock(page);
   await page.goto('/');
-  await page.getByRole('button', { name: 'スティック', exact: true }).click();
   const box = (await page.getByTestId('joystick').boundingBox())!;
   expect(box.height).toBeGreaterThanOrEqual(370);
   expect(box.width).toBeGreaterThanOrEqual(500);
 });
+
+const stickSide = (page: Page, name: '左' | '右') =>
+  page.getByRole('group', { name: '横画面のスティック位置' }).getByRole('button', { name });
 
 test('横画面のスティックを左右に切り替えられ、移動後も操作でき、選択が残る', async ({ page, context }) => {
   await page.setViewportSize({ width: 839, height: 412 });
@@ -516,8 +547,7 @@ test('横画面のスティックを左右に切り替えられ、移動後も�
 
   expect((await joystick.boundingBox())!.x).toBeLessThan((await stop.boundingBox())!.x);
 
-  await page.getByRole('button', { name: 'スティックを右へ' }).click();
-  await expectTextFits(page.getByRole('button', { name: 'スティックを左へ' }));
+  await inSettings(page, () => stickSide(page, '右').click());
   expect((await joystick.boundingBox())!.x).toBeGreaterThan((await stop.boundingBox())!.x);
 
   const cdp = await context.newCDPSession(page);
@@ -527,25 +557,26 @@ test('横画面のスティックを左右に切り替えられ、移動後も�
   await waitForOutput(page, 0, 0);
 
   await page.reload();
-  await expect(page.getByRole('button', { name: 'スティックを左へ' })).toBeVisible();
+  await page.getByRole('button', { name: '設定' }).click();
+  await expect(stickSide(page, '右')).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('スティックの左右切替は縦画面と他のモードでは出ない', async ({ page }) => {
+test('スティックの位置の設定はスティックのモードでだけ出る', async ({ page }) => {
   await installBluetoothMock(page);
   await page.goto('/');
-  await expect(page.getByRole('button', { name: /^スティックを/ })).toBeHidden();
-
-  await page.setViewportSize({ width: 839, height: 412 });
-  await expect(page.getByRole('button', { name: /^スティックを/ })).toBeVisible();
+  await page.getByRole('button', { name: '設定' }).click();
+  await expect(stickSide(page, '左')).toBeVisible();
   await page.getByRole('button', { name: '左右独立' }).click();
-  await expect(page.getByRole('button', { name: /^スティックを/ })).toBeHidden();
+  await expect(stickSide(page, '左')).toHaveCount(0);
 });
 
 test('左右バランスで片側だけ弱まり、設定が残り、0で戻せる', async ({ page, context }) => {
   await openConnected(page);
-  await page.getByRole('slider', { name: '左右バランス' }).focus();
-  for (let i = 0; i < 10; i += 1) await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('status', { name: '左右の出力比' })).toHaveText('L100 R90');
+  await inSettings(page, async () => {
+    await page.getByRole('slider', { name: '左右バランス' }).focus();
+    for (let i = 0; i < 10; i += 1) await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('status', { name: '左右の出力比' })).toHaveText('L100 R90');
+  });
 
   const cdp = await context.newCDPSession(page);
   await pushJoystickForward(page, cdp);
@@ -554,6 +585,7 @@ test('左右バランスで片側だけ弱まり、設定が残り、0で戻せ�
   await waitForOutput(page, 0, 0);
 
   await page.reload();
+  await page.getByRole('button', { name: '設定' }).click();
   await expect(page.getByRole('status', { name: '左右の出力比' })).toHaveText('L100 R90');
   await page.getByRole('button', { name: '左右バランスを中央に戻す' }).click();
   await expect(page.getByRole('status', { name: '左右の出力比' })).toHaveText('L100 R100');
@@ -561,22 +593,67 @@ test('左右バランスで片側だけ弱まり、設定が残り、0で戻せ�
 
 test('左右バランスは片側が止まるまで設定でき、ボタンで1%ずつ動かせる', async ({ page, context }) => {
   await openConnected(page);
-  const ratio = page.getByRole('status', { name: '左右の出力比' });
+  await inSettings(page, async () => {
+    const ratio = page.getByRole('status', { name: '左右の出力比' });
+    await page.getByRole('button', { name: 'バランスを右へ' }).click();
+    await expect(ratio).toHaveText('L100 R99');
+    await page.getByRole('button', { name: 'バランスを左へ' }).click();
+    await page.getByRole('button', { name: 'バランスを左へ' }).click();
+    await expect(ratio).toHaveText('L99 R100');
 
-  await page.getByRole('button', { name: 'バランスを右へ' }).click();
-  await expect(ratio).toHaveText('L100 R99');
-  await page.getByRole('button', { name: 'バランスを左へ' }).click();
-  await page.getByRole('button', { name: 'バランスを左へ' }).click();
-  await expect(ratio).toHaveText('L99 R100');
-
-  await page.getByRole('slider', { name: '左右バランス' }).focus();
-  await page.keyboard.press('End');
-  await expect(ratio).toHaveText('L100 R0');
-  await page.getByRole('button', { name: 'バランスを右へ' }).click(); // 上限を超えない
-  await expect(ratio).toHaveText('L100 R0');
+    await page.getByRole('slider', { name: '左右バランス' }).focus();
+    await page.keyboard.press('End');
+    await expect(ratio).toHaveText('L100 R0');
+    await page.getByRole('button', { name: 'バランスを右へ' }).click(); // 上限を超えない
+    await expect(ratio).toHaveText('L100 R0');
+  });
 
   const cdp = await context.newCDPSession(page);
   await pushJoystickForward(page, cdp);
   await waitForOutput(page, 100, 0);
   await touch(cdp, 'touchEnd', []);
+});
+
+test('操縦画面のバランス調整は標準で隠れ、設定で表示でき、選択が残る', async ({ page, context }) => {
+  await openConnected(page);
+  const summary = page.getByRole('status', { name: '現在の設定' });
+  await expect(page.getByRole('slider', { name: '左右バランス' })).toHaveCount(0);
+  await expect(summary).toContainText('L100 R100');
+
+  await showBalanceOnDrive(page);
+  await page.getByRole('button', { name: 'バランスを右へ' }).click();
+  await expect(page.getByRole('status', { name: '左右の出力比' })).toHaveText('L100 R99');
+
+  const cdp = await context.newCDPSession(page);
+  await pushJoystickForward(page, cdp);
+  await waitForOutput(page, 100, 99);
+  await touch(cdp, 'touchEnd', []);
+
+  await page.reload();
+  await expect(page.getByRole('slider', { name: '左右バランス' })).toBeVisible();
+
+  // 隠しても設定は効いたままで、操縦画面の表示で分かる
+  await inSettings(page, () => page.getByRole('checkbox', { name: '操縦画面にも表示する' }).uncheck());
+  await expect(page.getByRole('slider', { name: '左右バランス' })).toHaveCount(0);
+  await expect(summary).toContainText('L100 R99');
+});
+
+test('設定画面を開くと止まり、接続を保ち、STOPの状態を変えない', async ({ page, context }) => {
+  await openConnected(page);
+  const cdp = await context.newCDPSession(page);
+  await pushJoystickForward(page, cdp);
+  await waitForOutput(page, 100, 100);
+
+  await page.getByRole('button', { name: '設定' }).dispatchEvent('click');
+  await expect.poll(() => latestFrame(page)).toEqual([0, 0]);
+  await touch(cdp, 'touchEnd', []);
+
+  const count = await frameCount(page);
+  await expect.poll(() => frameCount(page)).toBeGreaterThan(count); // 送信は続く
+  await page.getByRole('button', { name: '閉じる' }).click();
+  await expect(linkStatus(page)).toHaveText('接続済み');
+
+  await page.getByRole('button', { name: 'STOP' }).click();
+  await inSettings(page, async () => {});
+  await expect(page.getByRole('button', { name: '停止中(解除)' })).toBeVisible();
 });
